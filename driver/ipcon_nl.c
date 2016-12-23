@@ -1,13 +1,19 @@
+/*
+ * Copyright (C) 2016  Seimizu Joukan
+ */
+
 #include <net/sock.h>
 #include <net/netlink.h>
 
 #include "ipcon.h"
 #include "ipcon_nl.h"
+#include "ipcon_tree.h"
 #include "ipcon_dbg.h"
 
 DEFINE_MUTEX(ipcon_mutex);
 
 static struct sock *ipcon_nl_sock;
+static struct ipcon_tree_node *cp_tree_root;
 
 int ipcon_nl_init(void)
 {
@@ -87,7 +93,6 @@ int ipcon_send_response(int pid, int seq, int error)
 static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int type;
-	char *data;
 	int error = 0;
 
 	type = nlh->nlmsg_type;
@@ -96,17 +101,20 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ipcon_err("Wong msg type: %x\n", type);
 		error = -EINVAL;
 	} else {
-
-		data = NLMSG_DATA(nlh);
+		struct ipcon_tree_node *nd = NULL;
 
 		switch (type) {
-		case SRV_REGISTER:
-			ipcon_info("Rcev from port %d: %s\n",
-					nlh->nlmsg_pid, data);
+		case IPCON_POINT_REG:
+			nd = cp_alloc_node(NLMSG_DATA(nlh));
+
+			if (!nd)
+				error = -ENOMEM;
+			else
+				error = cp_insert(cp_tree_root, nd);
 			break;
 		case MSG_STR:
 			ipcon_info("Rcev from port %d: %s\n",
-					nlh->nlmsg_pid, data);
+				nlh->nlmsg_pid, (char *)NLMSG_DATA(nlh));
 			break;
 		default:
 			error = -EINVAL;

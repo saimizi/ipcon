@@ -1,3 +1,7 @@
+/*
+ * Copyright (C) 2016  Seimizu Joukan
+ */
+
 #ifndef __IPCON_DBG_H__
 #define __IPCON_DBG_H__
 
