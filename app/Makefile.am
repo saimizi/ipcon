@@ -1,14 +1,3 @@
-# CFLAGS, AM_CFLAGS, mumble_CFLAGS
-# CFLAGSはユーザ変数扱い、指定された場合、すべてのオブジェクトビルドに適用される。
-# mumble_CFLAGSは、ターゲットmumbleのオブジェクトをビルドする際に適用するフラグ
-# AM_CFLAGSは、automakeのデフォルトフラグ、mumble_CFLAGS指定されていないターゲットのオブジェクトをコンパイルする際に使用される。
-#
-# 例えば、下記の場合、
-# nltestのオブジェクトnltest.cをビルドする際
-# 	-g -Wall -O0 -Wno-unused-function $(CFLGAS)
-# nltest2のオブジェクトnltest2.cをビルドする際、
-#	-g -O2 -Wall $(CFLGAS)
-
 bin_PROGRAMS = nltest nltest2 nltest_client ipcon_test
 
 nltest_SOURCES = nltest.c
