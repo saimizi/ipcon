@@ -110,7 +110,14 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (!nd)
 				error = -ENOMEM;
 			else
-				error = cp_insert(cp_tree_root, nd);
+				error = cp_insert(&cp_tree_root, nd);
+
+			if (error)
+				ipcon_err("Failed to register point.(%d)\n",
+						error);
+			else
+				ipcon_info("Point %s registered.\n",
+						nd->point.name);
 			break;
 		case MSG_STR:
 			ipcon_info("Rcev from port %d: %s\n",

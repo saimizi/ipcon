@@ -39,12 +39,24 @@ struct ipcon_tree_node *cp_detach_node(struct ipcon_tree_node *nd)
 	if (!nd || !cp_valid_node(nd))
 		return NULL;
 
-	np = nd->parent;
-	cp_insert(np, nd->left);
-	cp_insert(np, nd->right);
+	if (nd->parent) {
+		cp_insert(&nd->parent, nd->left);
+		cp_insert(&nd->parent, nd->right);
 
-	while (np->parent)
-		np = np->parent;
+		np = nd->parent;
+
+		while (np->parent)
+			np = np->parent;
+	} else {
+		if (nd->left) {
+			nd->left->parent = NULL;
+			cp_insert(&nd->left, nd->right);
+			np = nd->left;
+		} else if (nd->right) {
+			nd->right->parent = NULL;
+			np = nd->right;
+		}
+	}
 
 	nd->parent = nd->left = nd->right = NULL;
 
@@ -102,19 +114,19 @@ int cp_comp(struct ipcon_tree_node *n1, struct ipcon_tree_node *n2)
 	return strcmp(n1->point.name, n2->point.name);
 }
 
-int cp_insert(struct ipcon_tree_node *root, struct ipcon_tree_node *node)
+int cp_insert(struct ipcon_tree_node **root, struct ipcon_tree_node *node)
 {
 	int ret = 0;
 	struct ipcon_tree_node *it = NULL;
 
-	if (!cp_valid_node(node))
+	if (!root || !cp_valid_node(node))
 		return -EINVAL;
 
-	if (!root) {
-		root = node;
+	if (*root == NULL) {
+		*root = node;
 		node->parent = NULL;
 	} else {
-		it = root;
+		it = *root;
 
 		while (it) {
 			ret = cp_comp(it, node);

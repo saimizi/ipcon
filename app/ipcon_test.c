@@ -65,7 +65,7 @@ static int snd_unicast_msg(int sock, int port, enum MSG_TYPE mt, void *payload,
 	}
 	nlh->nlmsg_type = mt;
 	nlh->nlmsg_flags = NLM_F_REQUEST;
-	strcpy(NLMSG_DATA(nlh), (char *)payload);
+	memcpy(NLMSG_DATA(nlh), (char *)payload, payload_size);
 
 	dest.nl_family = AF_NETLINK;
 	dest.nl_pid = port;
@@ -117,6 +117,10 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	int sock = 0;
 	struct sockaddr_nl nladdr;
+	struct ipcon_point srv = {
+		.name = "ipcon_test",
+		.port = NLPORT
+	};
 
 	sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_IPCON);
 	if (sock < 0) {
@@ -137,8 +141,14 @@ int main(int argc, char *argv[])
 	}
 
 	printf("Port %d send msg.\n", NLPORT);
+#if 0
 	ret = snd_unicast_msg(sock, 0, MSG_STR,
 			"Hello world.", sizeof("Hello world.") + 1);
+#else
+	printf("name: %s port: %d\n", srv.name, srv.port);
+	ret = snd_unicast_msg(sock, 0, IPCON_POINT_REG,
+			&srv, sizeof(srv));
+#endif
 	if (ret < 0) {
 		ret = -1;
 		goto main_after_socket_open;
