@@ -38,5 +38,9 @@ struct ipcon_tree_node *cp_detach_node(struct ipcon_tree_node *nd);
 struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name);
 void cp_init_node(struct ipcon_tree_node *node);
 int cp_insert(struct ipcon_tree_node **root, struct ipcon_tree_node *node);
+void cp_walk_tree(struct ipcon_tree_node *root,
+		void (*process_node)(struct ipcon_tree_node *, void *),
+		void *para);
+void cp_free_tree(struct ipcon_tree_node *root);
 
 #endif

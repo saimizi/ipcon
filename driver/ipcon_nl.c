@@ -37,6 +37,9 @@ void ipcon_nl_exit(void)
 		netlink_kernel_release(ipcon_nl_sock);
 
 	ipcon_nl_sock = NULL;
+
+	if (cp_tree_root)
+		cp_free_tree(cp_tree_root);
 }
 
 int ipcon_nl_send_msg(int pid, int type, int seq,
@@ -116,7 +119,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				ipcon_err("Failed to register point.(%d)\n",
 						error);
 			else
-				ipcon_info("Point %s registered at port %d.\n",
+				ipcon_info("Point %s@%d registerred.\n",
 						nd->point.name,
 						nd->port);
 

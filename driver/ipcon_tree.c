@@ -30,6 +30,7 @@ struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port)
 
 void cp_free_node(struct ipcon_tree_node *nd)
 {
+	ipcon_info("Free point %s@%d.\n", nd->point.name, nd->port);
 	kfree(nd);
 }
 
@@ -158,4 +159,38 @@ int cp_insert(struct ipcon_tree_node **root, struct ipcon_tree_node *node)
 	}
 
 	return ret;
+}
+
+void cp_walk_tree(struct ipcon_tree_node *root,
+		void (*process_node)(struct ipcon_tree_node *, void *),
+		void *para)
+{
+	if (!root)
+		return;
+
+	if (root->left)
+		cp_walk_tree(root->left, process_node, para);
+
+	if (root->right)
+		cp_walk_tree(root->right, process_node, para);
+
+	process_node(root, para);
+}
+
+static void walk_free_node(struct ipcon_tree_node *nd, void *para)
+{
+	if (nd->parent) {
+		if (nd->parent->left == nd)
+			nd->parent->left = NULL;
+
+		if (nd->parent->right == nd)
+			nd->parent->right = NULL;
+	}
+
+	cp_free_node(nd);
+}
+
+void cp_free_tree(struct ipcon_tree_node *root)
+{
+	cp_walk_tree(root, walk_free_node, NULL);
 }
