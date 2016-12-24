@@ -6,7 +6,7 @@
 #include <linux/errno.h>
 #include "ipcon_tree.h"
 
-struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p)
+struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port)
 {
 	struct ipcon_tree_node *newnd;
 
@@ -23,6 +23,7 @@ struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p)
 
 	memcpy(&newnd->point, p, sizeof(*p));
 	newnd->left = newnd->right = newnd->parent = NULL;
+	newnd->port = port;
 
 	return newnd;
 }

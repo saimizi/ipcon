@@ -105,7 +105,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 		switch (type) {
 		case IPCON_POINT_REG:
-			nd = cp_alloc_node(NLMSG_DATA(nlh));
+			nd = cp_alloc_node(NLMSG_DATA(nlh), nlh->nlmsg_pid);
 
 			if (!nd)
 				error = -ENOMEM;
@@ -116,8 +116,14 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				ipcon_err("Failed to register point.(%d)\n",
 						error);
 			else
-				ipcon_info("Point %s registered.\n",
-						nd->point.name);
+				ipcon_info("Point %s registered at port %d.\n",
+						nd->point.name,
+						nd->port);
+
+			error = ipcon_send_response(nlh->nlmsg_pid,
+						nlh->nlmsg_seq++,
+						error);
+
 			break;
 		case MSG_STR:
 			ipcon_info("Rcev from port %d: %s\n",
@@ -129,7 +135,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		};
 	}
 
-	return ipcon_send_response(nlh->nlmsg_pid, nlh->nlmsg_seq++, error);
+	return  error;
 }
 
 void ipcon_nl_rcv_msg(struct sk_buff *skb)

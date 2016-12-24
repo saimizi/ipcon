@@ -7,9 +7,10 @@
 
 #define NETLINK_IPCON 29
 
+#define IPCON_MAX_POINT_NAME	128
+
 struct ipcon_point {
-	char name[128];
-	int port;
+	char name[IPCON_MAX_POINT_NAME];
 };
 
 enum MSG_TYPE {
