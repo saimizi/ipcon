@@ -119,8 +119,8 @@ int main(int argc, char *argv[])
 	struct sockaddr_nl nladdr;
 	struct ipcon_point srv = {
 		.name = "ipcon_test",
-		.port = NLPORT
 	};
+	int i;
 
 	sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_IPCON);
 	if (sock < 0) {
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
 	}
 
 	nladdr.nl_family = AF_NETLINK;
-	nladdr.nl_pid	 = NLPORT;
+	nladdr.nl_pid	 = 0;
 	nladdr.nl_groups = 0;
 
 	ret = bind(sock, (struct sockaddr *) &nladdr, sizeof(nladdr));
@@ -140,19 +140,21 @@ int main(int argc, char *argv[])
 		goto main_after_socket_open;
 	}
 
-	printf("Port %d send msg.\n", NLPORT);
-#if 0
-	ret = snd_unicast_msg(sock, 0, MSG_STR,
-			"Hello world.", sizeof("Hello world.") + 1);
-#else
-	printf("name: %s port: %d\n", srv.name, srv.port);
-	ret = snd_unicast_msg(sock, 0, IPCON_POINT_REG,
-			&srv, sizeof(srv));
-#endif
+
+	for (i = 0; i < argc; i++) {
+		if (i >= 1)
+			strcpy(srv.name, argv[i]);
+
+		ret = snd_unicast_msg(sock, 0, IPCON_POINT_REG,
+				&srv, sizeof(srv));
+	}
+
 	if (ret < 0) {
 		ret = -1;
 		goto main_after_socket_open;
 	}
+
+	exit(0);
 
 main_after_socket_open:
 	close(sock);

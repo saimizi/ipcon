@@ -128,6 +128,9 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 						error);
 
 			break;
+		case IPCON_POINT_DUMP:
+			cp_print_tree(cp_tree_root);
+			break;
 		case MSG_STR:
 			ipcon_info("Rcev from port %d: %s\n",
 				nlh->nlmsg_pid, (char *)NLMSG_DATA(nlh));

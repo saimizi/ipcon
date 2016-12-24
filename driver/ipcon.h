@@ -15,6 +15,8 @@ struct ipcon_point {
 
 enum MSG_TYPE {
 	IPCON_POINT_REG = 0x11,
+	IPCON_POINT_UNREG = 0x12,
+	IPCON_POINT_DUMP = 0x13,
 	MSG_STR,
 	MSG_MAX,
 	MSG_DUMMY
