@@ -102,7 +102,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	if (type >= MSG_MAX || !nlh->nlmsg_pid) {
 		ipcon_err("Wrong msg type:%x portid: %lu\n",
-				type, nlh->nlmsg_pid);
+				type, (unsigned long)nlh->nlmsg_pid);
 		error = -EINVAL;
 	} else {
 		struct ipcon_tree_node *nd = NULL;

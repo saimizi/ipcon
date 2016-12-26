@@ -60,7 +60,7 @@ void ipcon_free_handler(IPCON_HANDLER handler)
 		return;
 
 	if (imi->type == IPCON_TYPE_SERVICE) {
-		send_unicast_msg(imi->sk, 0, IPCON_POINT_UNREG,
+		send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
 					imi->srv, sizeof(*(imi->srv)));
 		free(imi->srv);
 	}
