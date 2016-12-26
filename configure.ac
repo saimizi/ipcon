@@ -1,6 +1,9 @@
+AC_PREREQ([2.65])
 AC_INIT([ipcon],0.0.1)
-
 AM_INIT_AUTOMAKE([foreign])
+
+LT_PREREQ([2.2])
+LT_INIT
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 
@@ -24,8 +27,9 @@ AS_IF([test "x$with_ksrc" != "x"],
 
 AC_SUBST(ksrc)
 AC_CONFIG_FILES([Makefile
-		 app/Makefile
 		 driver/Makefile
+		 lib/Makefile
+		 app/Makefile
 		])
 AC_OUTPUT
 

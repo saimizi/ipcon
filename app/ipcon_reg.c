@@ -9,86 +9,13 @@
 #include <string.h>
 
 #include "ipcon.h"
+#include "libipcon.h"
 
 #define ipcon_debug(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
 #define ipcon_info(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
 #define ipcon_err(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
 
-/* #define NLPORT	(pthread_self() << 16 | getpid()) */
-#define NLPORT	(getpid())
-
-static struct nlmsghdr *alloc_nlmsg(int payload_size);
-
 static int rcv_msg(int sock, struct sockaddr_nl *src, struct nlmsghdr *nlh);
-
-static int snd_msg(int sock, struct sockaddr_nl *dest, struct nlmsghdr *nlh)
-{
-	struct iovec iov;
-	struct msghdr msg;
-	ssize_t len = 0;
-	int ret = 0;
-
-	iov.iov_base = (void *)nlh;
-	iov.iov_len = nlh->nlmsg_len;
-
-	memset(&msg, 0, sizeof(struct msghdr));
-	msg.msg_name = (void *)dest;
-	msg.msg_namelen = sizeof(struct sockaddr_nl);
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
-
-	len = sendmsg(sock, &msg, 0);
-	if (len < 0) {
-		ipcon_err("%s : %s (%d).\n", __func__, strerror(errno), errno);
-		ret = -1;
-	}
-
-	return ret;
-}
-
-#define MAX_PAYLOAD_SIZE	(4 * 1024)
-static int snd_unicast_msg(int sock, int port, enum MSG_TYPE mt, void *payload,
-				int payload_size)
-{
-	struct sockaddr_nl dest;
-	struct nlmsghdr *nlh = NULL;
-
-	if (payload_size >= MAX_PAYLOAD_SIZE) {
-		ipcon_err("%s payload_size over.\n", __func__);
-		return -1;
-	}
-
-	nlh = alloc_nlmsg(MAX_PAYLOAD_SIZE);
-	if (nlh == NULL) {
-		ipcon_err("Failed to alloc netlink msg.\n");
-		return -1;
-	}
-	nlh->nlmsg_type = mt;
-	nlh->nlmsg_flags = NLM_F_REQUEST;
-	memcpy(NLMSG_DATA(nlh), (char *)payload, payload_size);
-
-	dest.nl_family = AF_NETLINK;
-	dest.nl_pid = port;
-	dest.nl_groups = 0;
-
-	return snd_msg(sock, &dest, nlh);
-}
-
-static struct nlmsghdr *alloc_nlmsg(int payload_size)
-{
-	struct nlmsghdr *nlh = NULL;
-
-	if (payload_size > 0) {
-		nlh = (struct nlmsghdr *) malloc(NLMSG_SPACE(payload_size));
-		if (nlh) {
-			nlh->nlmsg_len = NLMSG_SPACE(payload_size);
-			nlh->nlmsg_pid = NLPORT;
-			nlh->nlmsg_flags = 0;
-		}
-	}
-
-	return nlh;
-}
 
 static int rcv_msg(int sock, struct sockaddr_nl *src, struct nlmsghdr *nlh)
 {
@@ -115,50 +42,26 @@ static int rcv_msg(int sock, struct sockaddr_nl *src, struct nlmsghdr *nlh)
 int main(int argc, char *argv[])
 {
 	int ret = 0;
-	int sock = 0;
-	struct sockaddr_nl nladdr;
-	struct ipcon_point srv = {
-		.name = "ipcon_test",
-	};
-	int i;
+	IPCON_HANDLER handler;
 
-	sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_IPCON);
-	if (sock < 0) {
-		ipcon_err("Failed to open netlink socket.\n");
-		ret = -1;
-		goto main_out;
-	}
+	do {
+		handler = ipcon_create_handler();
+		if (!handler) {
+			ipcon_err("Failed to init libipcon.\n");
+			break;
+		}
 
-	nladdr.nl_family = AF_NETLINK;
-	nladdr.nl_pid	 = 0;
-	nladdr.nl_groups = 0;
+		ipcon_debug("Register %s.\n", argv[1]);
+		if (argc > 1) {
+			ret = ipcon_register_service(handler, argv[1]);
+			if (ret)
+				ipcon_err("Failed to register %s.\n", argv[1]);
+			else
+				ipcon_err("Service %s registered.\n", argv[1]);
+		}
 
-	ret = bind(sock, (struct sockaddr *) &nladdr, sizeof(nladdr));
-	if (ret < 0) {
-		ipcon_err("Failed to bind netlink socket.\n");
-		ret = -1;
-		goto main_after_socket_open;
-	}
-
-
-	for (i = 0; i < argc; i++) {
-		if (i >= 1)
-			strcpy(srv.name, argv[i]);
-
-		ret = snd_unicast_msg(sock, 0, IPCON_POINT_REG,
-				&srv, sizeof(srv));
-	}
-
-	if (ret < 0) {
-		ret = -1;
-		goto main_after_socket_open;
-	}
+	} while (0);
 
 	exit(0);
 
-main_after_socket_open:
-	close(sock);
-
-main_out:
-	exit(ret);
 }

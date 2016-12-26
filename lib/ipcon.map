@@ -1,0 +1,9 @@
+VER_0 {
+	global:
+		ipcon_create_handler;
+		ipcon_free_handler;
+		ipcon_register_service;
+	local:
+		*;
+};
+

@@ -1,1 +1,1 @@
-SUBDIRS = driver app
+SUBDIRS = driver lib app

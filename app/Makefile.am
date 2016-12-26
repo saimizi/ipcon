@@ -16,7 +16,10 @@ common_cflags = -g -O2 -Wall
 
 ipcon_reg_SOURCES = ipcon_reg.c
 ipcon_reg_CFLAGS =$(common_cflags) \
-		-I ${top_builddir}/driver/
+		-I ${top_builddir}/driver/ \
+		-I ${top_builddir}/lib/
+ipcon_reg_LDFLAGS= -L${top_builddir}/lib/.libs
+ipcon_reg_LDADD = -lipcon
 
 ipcon_dump_SOURCES = ipcon_dump.c
 ipcon_dump_CFLAGS =$(common_cflags) \
