@@ -116,7 +116,9 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				error = cp_insert(&cp_tree_root, nd);
 
 			if (error)
-				ipcon_err("Failed to register point.(%d)\n",
+				ipcon_err("Failed to register point %s@%d.(%d)\n",
+						nd->point.name,
+						nd->port,
 						error);
 			else
 				ipcon_info("Point %s@%d registerred.\n",

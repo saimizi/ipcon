@@ -80,9 +80,9 @@ struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name)
 
 		if (ret == 0)
 			break;
-		else if (ret == 1)
+		else if (ret > 0)
 			result = result->left;
-		else if (ret == -1)
+		else if (ret < 0)
 			result = result->right;
 		else
 			result = NULL;
@@ -109,11 +109,19 @@ void cp_init_node(struct ipcon_tree_node *node)
  */
 int cp_comp(struct ipcon_tree_node *n1, struct ipcon_tree_node *n2)
 {
+	int ret = 0;
 
 	if (!cp_valid_node(n1) || !cp_valid_node(n2))
 		return -EINVAL;
 
-	return strcmp(n1->point.name, n2->point.name);
+	ret = strcmp(n1->point.name, n2->point.name);
+	if (ret < 0)
+		ret = -1;
+
+	if (ret > 0)
+		ret = 1;
+
+	return ret;
 }
 
 int cp_insert(struct ipcon_tree_node **root, struct ipcon_tree_node *node)
