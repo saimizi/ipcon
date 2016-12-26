@@ -91,12 +91,6 @@ struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name)
 	return result;
 }
 
-void cp_init_node(struct ipcon_tree_node *node)
-{
-	if (node)
-		memset(node, 0, sizeof(node));
-}
-
 /*
  * Compare two nodes by using name.
  *
