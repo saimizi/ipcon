@@ -1,4 +1,4 @@
-AC_INIT([nltest],0.0.1)
+AC_INIT([ipcon],0.0.1)
 
 AM_INIT_AUTOMAKE([foreign])
 
