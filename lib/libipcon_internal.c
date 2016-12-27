@@ -49,7 +49,7 @@ static int send_msg(int sock, struct sockaddr_nl *dest, struct nlmsghdr *nlh)
 	return ret;
 }
 
-int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
+int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 		enum MSG_TYPE mt, void *payload, unsigned long payload_size)
 {
 	struct sockaddr_nl dest;
@@ -57,7 +57,7 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
 
 	if (payload_size >= MAX_PAYLOAD_SIZE) {
 		libipcon_err("%s payload_size over.\n", __func__);
-		return -1;
+		return -EINVAL;
 	}
 
 	nlh = alloc_nlmsg(payload_size);
@@ -68,7 +68,7 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
 
 	nlh->nlmsg_type = mt;
 	nlh->nlmsg_pid = imi->local.nl_pid;
-	nlh->nlmsg_flags = NLM_F_REQUEST;
+	nlh->nlmsg_flags = flag;
 	memcpy(NLMSG_DATA(nlh), (char *)payload, (size_t)payload_size);
 
 	dest.nl_family = AF_NETLINK;

@@ -73,6 +73,9 @@ int ipcon_nl_send_msg(int pid, int type, int seq,
 		 */
 		ret = netlink_unicast(ipcon_nl_sock, skb, pid, 0);
 
+		if (ret > 0)
+			ret = 0;
+
 	} while (0);
 
 	return ret;
@@ -136,8 +139,6 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 						nd->port);
 			}
 
-			error = ipcon_send_response(nlh, error);
-
 			break;
 		case IPCON_POINT_UNREG:
 			ip = NLMSG_DATA(nlh);
@@ -152,17 +153,18 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 								nd);
 			}
 
-			if (error)
+			if (error) {
 				ipcon_err("%s@%d unregistered failed (%d).\n",
 						ip->name,
 						nlh->nlmsg_pid,
 						error);
-			else
+			} else {
+				cp_free_node(nd);
 				ipcon_info("%s@%d unregistered.\n",
 						ip->name,
 						(int)nlh->nlmsg_pid);
+			}
 
-			error = ipcon_send_response(nlh, error);
 			break;
 		case IPCON_POINT_DUMP:
 			cp_print_tree(cp_tree_root);
@@ -177,6 +179,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		};
 	}
 
+	ipcon_dbg("%s-%d error=%d\n", __func__, __LINE__, error);
 	return  error;
 }
 

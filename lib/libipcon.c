@@ -62,13 +62,20 @@ void ipcon_free_handler(IPCON_HANDLER handler)
 	if (imi->type == IPCON_TYPE_SERVICE) {
 		int ret = 0;
 
-		send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
-					imi->srv, sizeof(*(imi->srv)));
 
-		ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
-		libipcon_dbg("Unregister %s by free handler %s.\n",
+		ret = send_unicast_msg(imi,
+					0,
+					NLM_F_ACK | NLM_F_REQUEST,
+					IPCON_POINT_UNREG,
+					imi->srv,
+					sizeof(*(imi->srv)));
+
+		if (!ret) {
+			ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
+			libipcon_dbg("Unregister %s by free handler %s.\n",
 					imi->srv->name,
 					ret ? "failed":"success");
+		}
 
 		free(imi->srv);
 	}
@@ -93,11 +100,18 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 
 	strcpy(srv->name, name),
 
-	ret = send_unicast_msg(imi, 0, IPCON_POINT_REG, srv, sizeof(*srv));
+	ret = send_unicast_msg(imi,
+				0,
+				NLM_F_ACK | NLM_F_REQUEST,
+				IPCON_POINT_REG,
+				srv,
+				sizeof(*srv));
 	if (!ret) {
-		imi->type = IPCON_TYPE_SERVICE;
-		imi->srv = srv;
 		ret = wait_err_response(imi, 0, IPCON_POINT_REG);
+		if (!ret) {
+			imi->type = IPCON_TYPE_SERVICE;
+			imi->srv = srv;
+		}
 	}
 
 	libipcon_dbg("Register %s %s.\n", name, ret ? "failed":"success");
@@ -117,8 +131,12 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	if ((imi->type != IPCON_TYPE_SERVICE) || (!imi->srv))
 		return -EINVAL;
 
-	ret = send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
-				imi->srv, sizeof(*(imi->srv)));
+	ret = send_unicast_msg(imi,
+			0,
+			NLM_F_ACK | NLM_F_REQUEST,
+			IPCON_POINT_UNREG,
+			imi->srv,
+			sizeof(*(imi->srv)));
 	if (!ret) {
 		ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
 
@@ -147,8 +165,12 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name)
 	if (!imi || !name)
 		return -EINVAL;
 
-	ret = send_unicast_msg(imi, 0, IPCON_POINT_RESLOVE,
-				name, strlen(name) + 1);
+	ret = send_unicast_msg(imi,
+			0,
+			NLM_F_ACK | NLM_F_REQUEST,
+			IPCON_POINT_RESLOVE,
+			name,
+			strlen(name) + 1);
 
 	if (!ret) {
 		ret = rcv_unicast_msg(imi, 0, &nlh);
@@ -159,8 +181,6 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name)
 				nlerr = NLMSG_DATA(nlh);
 				ret = nlerr->error;
 				free(nlh);
-			} else {
-				ret = *((int *)NLMSG_DATA(nlh));
 			}
 		}
 	}

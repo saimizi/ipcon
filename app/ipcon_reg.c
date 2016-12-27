@@ -48,12 +48,10 @@ int main(int argc, char *argv[])
 					argv[1], ret);
 		}
 
-#if 1
 		ret = ipcon_unregister_service(handler);
 		ipcon_dbg("Unregister %s %s.\n",
 				argv[1],
 				ret ? "failed":"success");
-#endif
 
 		ipcon_free_handler(handler);
 	} while (0);

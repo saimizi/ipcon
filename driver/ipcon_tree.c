@@ -44,22 +44,28 @@ int cp_detach_node(struct ipcon_tree_node **root, struct ipcon_tree_node *nd)
 		return -EINVAL;
 
 	if (nd->parent) {
-		cp_insert(&nd->parent, nd->left);
-		cp_insert(&nd->parent, nd->right);
-
 		np = nd->parent;
+
+		if (np->left == nd)
+			np->left = NULL;
+		else
+			np->right = NULL;
+
+		cp_insert(&np, nd->left);
+		cp_insert(&np, nd->right);
 
 		while (np->parent)
 			np = np->parent;
 	} else {
 		if (nd->left) {
-			nd->left->parent = NULL;
-			cp_insert(&nd->left, nd->right);
 			np = nd->left;
+			np->parent = NULL;
+			cp_insert(&np, nd->right);
 		} else if (nd->right) {
-			nd->right->parent = NULL;
 			np = nd->right;
+			np->parent = NULL;
 		}
+
 	}
 
 	nd->parent = nd->left = nd->right = NULL;
@@ -91,6 +97,15 @@ struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name)
 			result = NULL;
 	}
 
+	if (result)
+		ipcon_dbg("%s-%d found %s for %s\n",
+				__func__,
+				__LINE__,
+				result->point.name,
+				name);
+	else
+		ipcon_dbg("%s-%d Not found for %s.\n",
+				__func__, __LINE__, name);
 	return result;
 }
 

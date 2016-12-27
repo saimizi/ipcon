@@ -33,7 +33,7 @@ struct ipcon_mng_info {
 #define info_to_handler(a)	((IPCON_HANDLER) a)
 
 #define MAX_PAYLOAD_SIZE	(4 * 1024)
-int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
+int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 		enum MSG_TYPE mt, void *payload, unsigned long payload_size);
 int rcv_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
 			struct nlmsghdr **nlh);
