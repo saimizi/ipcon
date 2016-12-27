@@ -54,6 +54,7 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 {
 	struct sockaddr_nl dest;
 	struct nlmsghdr *nlh = NULL;
+	int ret = 0;
 
 	if (payload_size >= MAX_PAYLOAD_SIZE) {
 		libipcon_err("%s payload_size over.\n", __func__);
@@ -69,13 +70,18 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 	nlh->nlmsg_type = mt;
 	nlh->nlmsg_pid = imi->local.nl_pid;
 	nlh->nlmsg_flags = flag;
-	memcpy(NLMSG_DATA(nlh), (char *)payload, (size_t)payload_size);
+
+	if (payload && (payload_size > 0))
+		memcpy(NLMSG_DATA(nlh), (char *)payload, (size_t)payload_size);
 
 	dest.nl_family = AF_NETLINK;
 	dest.nl_pid = port;
 	dest.nl_groups = 0;
 
-	return send_msg(imi->sk, &dest, nlh);
+	ret = send_msg(imi->sk, &dest, nlh);
+	free(nlh);
+
+	return ret;
 }
 
 static int rcv_msg(struct ipcon_mng_info *imi, __u32 port,

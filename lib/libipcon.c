@@ -159,7 +159,6 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name)
 {
 	int ret = 0;
 	struct nlmsghdr *nlh = NULL;
-
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 
 	if (!imi || !name)
@@ -184,6 +183,62 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name)
 			}
 		}
 	}
+
+	return ret;
+}
+
+int ipcon_rcv_msg(IPCON_HANDLER handler, __u32 *port, void **buf)
+{
+	int ret = 0;
+	struct nlmsghdr *nlh = NULL;
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+	int data_size = 0;
+
+	if (!imi)
+		return -EINVAL;
+
+	ret = rcv_unicast_msg(imi, 0, &nlh);
+	if (!ret) {
+		if (nlh->nlmsg_type == NLMSG_ERROR) {
+			struct nlmsgerr *nlerr;
+
+			nlerr = NLMSG_DATA(nlh);
+			ret = nlerr->error;
+		} else {
+			char *tmp_buf = NULL;
+
+			data_size = (int)(nlh->nlmsg_len - NLMSG_HDRLEN);
+			tmp_buf = (char *)malloc((size_t)data_size);
+			memcpy(tmp_buf, NLMSG_DATA(nlh), (size_t)data_size);
+			*buf = tmp_buf;
+			ret = data_size;
+			*port = nlh->nlmsg_pid;
+		}
+
+		free(nlh);
+	}
+
+	return ret;
+}
+
+int ipcon_send_unicast_msg(IPCON_HANDLER handler, __u32 port,
+					void *buf, size_t size)
+{
+	int ret = 0;
+	struct nlmsghdr *nlh = NULL;
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+	int data_size = 0;
+
+	if (!imi || !port)
+		return -EINVAL;
+
+	ret = send_unicast_msg(imi,
+			port,
+			NLM_F_REQUEST,
+			IPCON_POINT_USER,
+			buf,
+			size);
+
 
 	return ret;
 }

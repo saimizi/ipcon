@@ -5,6 +5,8 @@ VER_0 {
 		ipcon_register_service;
 		ipcon_unregister_service;
 		ipcon_find_service;
+		ipcon_rcv_msg;
+		ipcon_send_unicast_msg;
 	local:
 		*;
 };
