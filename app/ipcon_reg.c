@@ -11,9 +11,9 @@
 #include "ipcon.h"
 #include "libipcon.h"
 
-#define ipcon_debug(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
-#define ipcon_info(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
-#define ipcon_err(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
+#define ipcon_debug(fmt, ...)	printf("[ipcon_reg] "fmt, ##__VA_ARGS__)
+#define ipcon_info(fmt, ...)	printf("[ipcon_reg] "fmt, ##__VA_ARGS__)
+#define ipcon_err(fmt, ...)	printf("[ipcon_reg] "fmt, ##__VA_ARGS__)
 
 static int rcv_msg(int sock, struct sockaddr_nl *src, struct nlmsghdr *nlh);
 
@@ -55,9 +55,12 @@ int main(int argc, char *argv[])
 		if (argc > 1) {
 			ret = ipcon_register_service(handler, argv[1]);
 			if (ret)
-				ipcon_err("Failed to register %s.\n", argv[1]);
+				ipcon_err("Failed to register %s: %s (%d)\n",
+					argv[1], strerror(-ret), ret);
 			else
 				ipcon_err("Service %s registered.\n", argv[1]);
+		} else {
+			ipcon_err("No service name specified.\n");
 		}
 
 	} while (0);

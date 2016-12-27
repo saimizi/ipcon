@@ -30,8 +30,10 @@ struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port)
 
 void cp_free_node(struct ipcon_tree_node *nd)
 {
-	ipcon_info("Free point %s@%d.\n", nd->point.name, nd->port);
-	kfree(nd);
+	if (nd) {
+		ipcon_info("Free point %s@%d.\n", nd->point.name, nd->port);
+		kfree(nd);
+	}
 }
 
 struct ipcon_tree_node *cp_detach_node(struct ipcon_tree_node *nd)

@@ -106,25 +106,31 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		error = -EINVAL;
 	} else {
 		struct ipcon_tree_node *nd = NULL;
+		struct ipcon_point *ip = NULL;
 
 		switch (type) {
 		case IPCON_POINT_REG:
-			nd = cp_alloc_node(NLMSG_DATA(nlh), nlh->nlmsg_pid);
+			ip = NLMSG_DATA(nlh);
+			if (!ip || !strlen(ip->name)) {
+				error = -EINVAL;
+			} else {
+				nd = cp_alloc_node(ip, nlh->nlmsg_pid);
+				if (!nd)
+					error = -ENOMEM;
+				else
+					error = cp_insert(&cp_tree_root, nd);
+			}
 
-			if (!nd)
-				error = -ENOMEM;
-			else
-				error = cp_insert(&cp_tree_root, nd);
-
-			if (error)
-				ipcon_err("Failed to register point %s@%d.(%d)\n",
-						nd->point.name,
-						nd->port,
+			if (error) {
+				if (nd)
+					cp_free_node(nd);
+				ipcon_err("Failed to register point.(%d)\n",
 						error);
-			else
+			} else {
 				ipcon_info("Point %s@%d registerred.\n",
 						nd->point.name,
 						nd->port);
+			}
 
 			error = ipcon_send_response(nlh->nlmsg_pid,
 						nlh->nlmsg_seq++,
