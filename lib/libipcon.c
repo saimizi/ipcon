@@ -104,3 +104,32 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 
 	return ret;
 }
+
+int ipcon_unregister_service(IPCON_HANDLER handler)
+{
+	int ret = 0;
+
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+
+	if (!imi)
+		return -EINVAL;
+
+	if ((imi->type != IPCON_TYPE_SERVICE) || (!imi->srv))
+		return -EINVAL;
+
+	send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
+				imi->srv, sizeof(*(imi->srv)));
+
+	ret = wait_response(imi, IPCON_POINT_UNREG);
+
+	libipcon_dbg("Unregister %s %s.\n",
+				imi->srv->name,
+				ret ? "failed":"success");
+	if (!ret) {
+		free(imi->srv);
+		imi->srv = NULL;
+		imi->type = IPCON_TYPE_USER;
+	}
+
+	return ret;
+}

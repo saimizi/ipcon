@@ -10,4 +10,5 @@
 IPCON_HANDLER ipcon_create_handler(void);
 void ipcon_free_handler(IPCON_HANDLER handler);
 int ipcon_register_service(IPCON_HANDLER handler, char *name);
+int ipcon_unregister_service(IPCON_HANDLER handler);
 #endif

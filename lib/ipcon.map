@@ -3,6 +3,7 @@ VER_0 {
 		ipcon_create_handler;
 		ipcon_free_handler;
 		ipcon_register_service;
+		ipcon_unregister_service;
 	local:
 		*;
 };
