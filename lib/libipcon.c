@@ -65,7 +65,7 @@ void ipcon_free_handler(IPCON_HANDLER handler)
 		send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
 					imi->srv, sizeof(*(imi->srv)));
 
-		ret = wait_response(imi, IPCON_POINT_UNREG);
+		ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
 		libipcon_dbg("Unregister %s by free handler %s.\n",
 					imi->srv->name,
 					ret ? "failed":"success");
@@ -97,9 +97,9 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 	if (!ret) {
 		imi->type = IPCON_TYPE_SERVICE;
 		imi->srv = srv;
+		ret = wait_err_response(imi, 0, IPCON_POINT_REG);
 	}
 
-	ret = wait_response(imi, IPCON_POINT_REG);
 	libipcon_dbg("Register %s %s.\n", name, ret ? "failed":"success");
 
 	return ret;
@@ -117,18 +117,52 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	if ((imi->type != IPCON_TYPE_SERVICE) || (!imi->srv))
 		return -EINVAL;
 
-	send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
+	ret = send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
 				imi->srv, sizeof(*(imi->srv)));
-
-	ret = wait_response(imi, IPCON_POINT_UNREG);
-
-	libipcon_dbg("Unregister %s %s.\n",
-				imi->srv->name,
-				ret ? "failed":"success");
 	if (!ret) {
-		free(imi->srv);
-		imi->srv = NULL;
-		imi->type = IPCON_TYPE_USER;
+		ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
+
+		libipcon_dbg("Unregister %s %s.\n",
+					imi->srv->name,
+					ret ? "failed":"success");
+		if (!ret) {
+			free(imi->srv);
+			imi->srv = NULL;
+			imi->type = IPCON_TYPE_USER;
+		}
+	} else {
+		libipcon_err("Unregister failed(%d).\n", ret);
+	}
+
+	return ret;
+}
+
+int ipcon_find_service(IPCON_HANDLER handler, char *name)
+{
+	int ret = 0;
+	struct nlmsghdr *nlh = NULL;
+
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+
+	if (!imi || !name)
+		return -EINVAL;
+
+	ret = send_unicast_msg(imi, 0, IPCON_POINT_RESLOVE,
+				name, strlen(name) + 1);
+
+	if (!ret) {
+		ret = rcv_unicast_msg(imi, 0, &nlh);
+		if (!ret) {
+			if (nlh->nlmsg_type == NLMSG_ERROR) {
+				struct nlmsgerr *nlerr;
+
+				nlerr = NLMSG_DATA(nlh);
+				ret = nlerr->error;
+				free(nlh);
+			} else {
+				ret = *((int *)NLMSG_DATA(nlh));
+			}
+		}
 	}
 
 	return ret;

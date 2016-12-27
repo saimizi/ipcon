@@ -39,6 +39,15 @@ int main(int argc, char *argv[])
 			ipcon_err("No service name specified.\n");
 		}
 
+		ret = ipcon_find_service(handler, argv[1]);
+		if (ret < 0) {
+			ipcon_err("Failed to find service %s.\n",
+					argv[1]);
+		} else {
+			ipcon_info("service %s is at port %d.\n",
+					argv[1], ret);
+		}
+
 #if 1
 		ret = ipcon_unregister_service(handler);
 		ipcon_dbg("Unregister %s %s.\n",

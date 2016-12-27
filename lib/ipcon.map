@@ -4,6 +4,7 @@ VER_0 {
 		ipcon_free_handler;
 		ipcon_register_service;
 		ipcon_unregister_service;
+		ipcon_find_service;
 	local:
 		*;
 };
