@@ -81,25 +81,6 @@ int ipcon_nl_send_msg(int pid, int type, int seq,
 	return ret;
 }
 
-int ipcon_send_response(struct nlmsghdr *msg, int error)
-{
-	struct nlmsgerr nlerr;
-	int ret = 0;
-
-	if (!msg)
-		return -EINVAL;
-
-	memset(&nlerr, 0, sizeof(nlerr));
-
-	nlerr.error = error;
-	memcpy(&nlerr.msg, msg, sizeof(*msg));
-
-	ret = ipcon_nl_send_msg(msg->nlmsg_pid, NLMSG_ERROR, msg->nlmsg_seq++,
-			(void *)&nlerr, sizeof(nlerr));
-
-	return ret;
-}
-
 static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int type;
