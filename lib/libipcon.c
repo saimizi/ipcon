@@ -60,8 +60,16 @@ void ipcon_free_handler(IPCON_HANDLER handler)
 		return;
 
 	if (imi->type == IPCON_TYPE_SERVICE) {
+		int ret = 0;
+
 		send_unicast_msg(imi, 0, IPCON_POINT_UNREG,
 					imi->srv, sizeof(*(imi->srv)));
+
+		ret = wait_response(imi, IPCON_POINT_UNREG);
+		libipcon_dbg("Unregister %s by free handler %s.\n",
+					imi->srv->name,
+					ret ? "failed":"success");
+
 		free(imi->srv);
 	}
 
@@ -74,6 +82,7 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	struct ipcon_point *srv = NULL;
+	struct nlmsgerr nlerr;
 
 	if (!imi || !name || !strlen(name))
 		return -EINVAL;
@@ -89,6 +98,9 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 		imi->type = IPCON_TYPE_SERVICE;
 		imi->srv = srv;
 	}
+
+	ret = wait_response(imi, IPCON_POINT_REG);
+	libipcon_dbg("Register %s %s.\n", name, ret ? "failed":"success");
 
 	return ret;
 }

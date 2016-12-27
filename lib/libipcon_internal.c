@@ -60,10 +60,10 @@ int send_unicast_msg(struct ipcon_mng_info *imi, int port, enum MSG_TYPE mt,
 		return -1;
 	}
 
-	nlh = alloc_nlmsg(MAX_PAYLOAD_SIZE);
+	nlh = alloc_nlmsg(payload_size);
 	if (nlh == NULL) {
 		libipcon_err("Failed to alloc netlink msg.\n");
-		return -1;
+		return -ENOMEM;
 	}
 
 	nlh->nlmsg_type = mt;
@@ -78,3 +78,81 @@ int send_unicast_msg(struct ipcon_mng_info *imi, int port, enum MSG_TYPE mt,
 	return send_msg(imi->sk, &dest, nlh);
 }
 
+static int rcv_msg(int sock, struct sockaddr_nl *src, struct nlmsghdr *nlh)
+{
+	struct iovec iov;
+	struct msghdr msg;
+	ssize_t len = 0;
+	int ret = 0;
+
+	iov.iov_base = (void *)nlh;
+	iov.iov_len = nlh->nlmsg_len;
+
+	msg.msg_name = (void *)src;
+	msg.msg_namelen = sizeof(struct sockaddr_nl);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+
+	len = recvmsg(sock, &msg, 0);
+	if (len < 0)
+		ret = -1;
+
+	return ret;
+}
+
+int rcv_unicast_msg(struct ipcon_mng_info *imi, int port, void *buf,
+			unsigned long size)
+{
+	struct nlmsghdr *nlh = NULL;
+	struct sockaddr_nl dst;
+	int ret = 0;
+
+	if (!imi || !buf || size > MAX_PAYLOAD_SIZE)
+		return -EINVAL;
+
+	nlh = alloc_nlmsg(size);
+	if (nlh == NULL) {
+		libipcon_err("Failed to alloc netlink msg.\n");
+		return -ENOMEM;
+	}
+
+	dst.nl_family = AF_NETLINK;
+	dst.nl_pid = (__u32)port;
+	dst.nl_groups = 0;
+
+	ret = rcv_msg(imi->sk, &dst, nlh);
+	if (!ret) {
+		char *p = NLMSG_DATA(nlh);
+
+		if (size > 0)
+			memcpy(buf, p, size);
+	}
+
+	free(nlh);
+
+	return ret;
+}
+
+int wait_response(struct ipcon_mng_info *imi, enum MSG_TYPE mt)
+{
+	int ret = 0;
+	struct nlmsgerr nlerr;
+
+	if (!imi)
+		return -EINVAL;
+
+	/* FIXME: Add timeout... */
+	do {
+		ret = rcv_unicast_msg(imi, 0, &nlerr, sizeof(nlerr));
+		if (!ret) {
+			if (nlerr.msg.nlmsg_type == mt) {
+				ret = nlerr.error;
+				break;
+			}
+		} else {
+			break;
+		}
+	} while (1);
+
+	return ret;
+}

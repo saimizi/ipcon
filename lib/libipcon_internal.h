@@ -36,4 +36,7 @@ struct ipcon_mng_info {
 int send_unicast_msg(struct ipcon_mng_info *imi, int port, enum MSG_TYPE mt,
 			void *payload, unsigned long payload_size);
 
+int rcv_unicast_msg(struct ipcon_mng_info *imi, int port, void *buf,
+			unsigned long size);
+int wait_response(struct ipcon_mng_info *imi, enum MSG_TYPE mt);
 #endif
