@@ -114,6 +114,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 	} else {
 		struct ipcon_tree_node *nd = NULL;
 		struct ipcon_point *ip = NULL;
+		char *srv_name = NULL;
 
 		switch (type) {
 		case IPCON_POINT_REG:
@@ -165,6 +166,18 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 						(int)nlh->nlmsg_pid);
 			}
 
+			break;
+		case IPCON_POINT_RESLOVE:
+			srv_name = NLMSG_DATA(nlh);
+			if (!srv_name || !strlen(srv_name)) {
+				error = -EINVAL;
+			} else {
+				nd = cp_lookup(cp_tree_root, srv_name);
+				if (!nd)
+					error = -EINVAL;
+				else
+					error = nd->port;
+			}
 			break;
 		case IPCON_POINT_DUMP:
 			cp_print_tree(cp_tree_root);
