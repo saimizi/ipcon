@@ -36,12 +36,12 @@ void cp_free_node(struct ipcon_tree_node *nd)
 	}
 }
 
-struct ipcon_tree_node *cp_detach_node(struct ipcon_tree_node *nd)
+int cp_detach_node(struct ipcon_tree_node **root, struct ipcon_tree_node *nd)
 {
 	struct ipcon_tree_node *np = NULL;
 
 	if (!nd || !cp_valid_node(nd))
-		return NULL;
+		return -EINVAL;
 
 	if (nd->parent) {
 		cp_insert(&nd->parent, nd->left);
@@ -64,8 +64,9 @@ struct ipcon_tree_node *cp_detach_node(struct ipcon_tree_node *nd)
 
 	nd->parent = nd->left = nd->right = NULL;
 
-	return np;
+	*root = np;
 
+	return 0;
 }
 
 struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name)

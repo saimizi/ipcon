@@ -127,7 +127,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				ipcon_err("Failed to register point.(%d)\n",
 						error);
 			} else {
-				ipcon_info("Point %s@%d registerred.\n",
+				ipcon_info("%s@%d registerred.\n",
 						nd->point.name,
 						nd->port);
 			}
@@ -136,6 +136,33 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 						nlh->nlmsg_seq++,
 						error);
 
+			break;
+		case IPCON_POINT_UNREG:
+			ip = NLMSG_DATA(nlh);
+			if (!ip || !strlen(ip->name)) {
+				error = -EINVAL;
+			} else {
+				nd = cp_lookup(cp_tree_root, ip->name);
+				if (!nd)
+					error = -EINVAL;
+				else
+					error = cp_detach_node(&cp_tree_root,
+								nd);
+			}
+
+			if (!error)
+				ipcon_err("%s@%d unregistered.\n",
+						ip->name,
+						(int)nlh->nlmsg_pid);
+			else
+				ipcon_err("%s@%d unregistered failed (%d).\n",
+						ip->name,
+						nlh->nlmsg_pid,
+						error);
+
+			error = ipcon_send_response(nlh->nlmsg_pid,
+						nlh->nlmsg_seq++,
+						error);
 			break;
 		case IPCON_POINT_DUMP:
 			cp_print_tree(cp_tree_root);

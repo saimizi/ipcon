@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
 			ipcon_err("No service name specified.\n");
 		}
 
+		ipcon_free_handler(handler);
 	} while (0);
 
 	exit(0);

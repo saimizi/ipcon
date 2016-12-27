@@ -34,7 +34,7 @@ static inline int cp_valid_node(struct ipcon_tree_node *node)
 int cp_comp(struct ipcon_tree_node *n1, struct ipcon_tree_node *n2);
 struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port);
 void cp_free_node(struct ipcon_tree_node *nd);
-struct ipcon_tree_node *cp_detach_node(struct ipcon_tree_node *nd);
+int cp_detach_node(struct ipcon_tree_node **root, struct ipcon_tree_node *nd);
 struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name);
 int cp_insert(struct ipcon_tree_node **root, struct ipcon_tree_node *node);
 int cp_walk_tree(struct ipcon_tree_node *root,
