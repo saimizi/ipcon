@@ -14,7 +14,8 @@
 #define libipcon_err(fmt, ...) \
 	fprintf(stderr, "[libipcon] ERROR: "fmt, ##__VA_ARGS__)
 
-#define NLPORT	((__u32)getpid())
+/* #define NLPORT	((__u32)getpid()) */
+#define NLPORT	(0)
 
 enum ipcon_type {
 	IPCON_TYPE_USER,

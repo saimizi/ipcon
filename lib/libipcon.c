@@ -10,10 +10,9 @@
 IPCON_HANDLER ipcon_create_handler(void)
 {
 	struct ipcon_mng_info *imi = NULL;
+	int ret = 0;
 
 	do {
-		int ret = 0;
-
 		imi = (struct ipcon_mng_info *) malloc(sizeof(*imi));
 		if (!imi)
 			break;
@@ -37,17 +36,48 @@ IPCON_HANDLER ipcon_create_handler(void)
 							sizeof(imi->local));
 		if (ret < 0) {
 			libipcon_err("Failed to bind netlink socket.\n");
-			close(imi->sk);
-			free(imi);
-			imi = NULL;
 			break;
 		}
 
-		/* FIXME: Get the port id auto binded by kernel*/
+		ret = send_unicast_msg(imi,
+					0,
+					NLM_F_ACK | NLM_F_REQUEST,
+					IPCON_POINT_SELFID,
+					NULL,
+					1);
+
+		if (!ret) {
+			struct nlmsghdr *nlh = NULL;
+
+			/* FIXME: Add timeout here */
+			while (1) {
+				ret = rcv_unicast_msg(imi, 0, &nlh);
+				if (ret)
+					break;
+
+				if (nlh->nlmsg_type == NLMSG_ERROR) {
+					struct nlmsgerr *nlerr;
+
+					nlerr = NLMSG_DATA(nlh);
+					ret = nlerr->error;
+					free(nlh);
+					break;
+				}
+
+				imi->local.nl_pid = *(__u32 *)NLMSG_DATA(nlh);
+			}
+		}
+
 		libipcon_dbg("Port: %lu\n", (unsigned long)imi->local.nl_pid);
-		ret = 0;
 
 	} while (0);
+
+	if (ret < 0) {
+		close(imi->sk);
+		if (imi)
+			free(imi);
+		imi = NULL;
+	}
 
 	return (IPCON_HANDLER) imi;
 }

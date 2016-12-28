@@ -88,7 +88,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	type = nlh->nlmsg_type;
 
-	if (type >= MSG_MAX || !nlh->nlmsg_pid) {
+	if (type >= MSG_MAX) {
 		ipcon_err("Wrong msg type:%x portid: %lu\n",
 				type, (unsigned long)nlh->nlmsg_pid);
 		error = -EINVAL;
@@ -96,8 +96,19 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		struct ipcon_tree_node *nd = NULL;
 		struct ipcon_point *ip = NULL;
 		char *srv_name = NULL;
+		u32 selfid = 0;
 
 		switch (type) {
+		case IPCON_POINT_SELFID:
+			selfid = NETLINK_CB(skb).portid;
+			error = ipcon_nl_send_msg(selfid,
+						IPCON_POINT_SELFID,
+						nlh->nlmsg_seq++,
+						&selfid,
+						sizeof(selfid));
+			ipcon_dbg("IPCON_POINT_SELFID: SELFID= %lu.\n",
+					(unsigned long)selfid);
+			break;
 		case IPCON_POINT_REG:
 			ip = NLMSG_DATA(nlh);
 			if (!ip || !strlen(ip->name)) {

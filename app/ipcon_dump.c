@@ -15,7 +15,8 @@
 #define ipcon_err(fmt, ...)	printf("[ipcon] "fmt, ##__VA_ARGS__)
 
 /* #define NLPORT	(pthread_self() << 16 | getpid()) */
-#define NLPORT	(getpid())
+/* #define NLPORT	(getpid()) */
+#define NLPORT	(0)
 
 static struct nlmsghdr *alloc_nlmsg(int payload_size);
 
