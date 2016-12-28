@@ -11,7 +11,7 @@
 
 struct ipcon_tree_node {
 	struct ipcon_point point;
-	int port;
+	u32 port;
 	struct ipcon_tree_node *parent;
 	struct ipcon_tree_node *left;
 	struct ipcon_tree_node *right;

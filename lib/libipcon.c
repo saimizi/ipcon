@@ -185,13 +185,12 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	return ret;
 }
 
-int ipcon_find_service(IPCON_HANDLER handler, char *name)
+int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port)
 {
 	int ret = 0;
-	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 
-	if (!imi || !name)
+	if (!imi || !name || !srv_port)
 		return -EINVAL;
 
 	ret = send_unicast_msg(imi,
@@ -202,15 +201,24 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name)
 			strlen(name) + 1);
 
 	if (!ret) {
-		ret = rcv_unicast_msg(imi, 0, &nlh);
-		if (!ret) {
+		struct nlmsghdr *nlh = NULL;
+
+		/* FIXME: Add timeout here */
+		while (1) {
+			ret = rcv_unicast_msg(imi, 0, &nlh);
+			if (ret)
+				break;
+
 			if (nlh->nlmsg_type == NLMSG_ERROR) {
 				struct nlmsgerr *nlerr;
 
 				nlerr = NLMSG_DATA(nlh);
 				ret = nlerr->error;
 				free(nlh);
+				break;
 			}
+
+			*srv_port = *(__u32 *)NLMSG_DATA(nlh);
 		}
 	}
 

@@ -23,16 +23,17 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	IPCON_HANDLER handler;
 	IPCON_HANDLER handler2;
+	__u32 srv_port;
 
 	do {
-		handler = ipcon_create_handler();
-		if (!handler) {
+		handler2 = ipcon_create_handler();
+		if (!handler2) {
 			ipcon_err("Failed to create libipcon handler.\n");
 			break;
 		}
 
-		handler2 = ipcon_create_handler();
-		if (!handler2) {
+		handler = ipcon_create_handler();
+		if (!handler) {
 			ipcon_err("Failed to create libipcon handler.\n");
 			ipcon_free_handler(handler);
 			break;
@@ -57,13 +58,44 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		ret = ipcon_find_service(handler2, argv[1]);
+		ret = ipcon_find_service(handler2, argv[1], &srv_port);
 		if (ret < 0) {
 			ipcon_err("Failed to find service %s.\n",
 					argv[1]);
-		} else {
-			ipcon_info("service %s is at port %d.\n",
-					argv[1], ret);
+			ipcon_free_handler(handler);
+			ipcon_free_handler(handler2);
+			break;
+		}
+
+		{
+			char *msg = "Hello world!";
+
+			ipcon_info("service %s is at port %lu.\n",
+					argv[1], (unsigned long)srv_port);
+
+			ipcon_send_unicast_msg(handler2,
+						srv_port,
+						msg,
+						strlen(msg) + 1);
+		}
+
+		{
+			__u32 src_port = 0;
+			char *buf = NULL;
+			int len = 0;
+
+			len = ipcon_rcv_msg(handler, &src_port, (void **) &buf);
+			if (len < 0) {
+				ipcon_err("Receive msg from handler2 failed\n");
+				ipcon_free_handler(handler);
+				ipcon_free_handler(handler2);
+				break;
+			}
+
+			ipcon_info("Msg from port %lu size= %d: %s\n",
+					(unsigned long)src_port, len, buf);
+			free(buf);
+
 		}
 
 		ret = ipcon_unregister_service(handler);

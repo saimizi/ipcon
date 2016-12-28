@@ -42,7 +42,7 @@ void ipcon_nl_exit(void)
 		cp_free_tree(cp_tree_root);
 }
 
-int ipcon_nl_send_msg(int pid, int type, int seq,
+int ipcon_nl_send_msg(u32 pid, int type, int seq,
 				void *data, size_t size)
 {
 	struct sk_buff *skb = NULL;
@@ -168,7 +168,12 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				if (!nd)
 					error = -EINVAL;
 				else
-					error = nd->port;
+					error = ipcon_nl_send_msg(
+							nlh->nlmsg_pid,
+							IPCON_POINT_SELFID,
+							nlh->nlmsg_seq++,
+							&nd->port,
+							sizeof(nd->port));
 			}
 			break;
 		case IPCON_POINT_DUMP:
