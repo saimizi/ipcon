@@ -17,6 +17,10 @@
 /* #define NLPORT	((__u32)getpid()) */
 #define NLPORT	(0)
 
+#ifndef SOL_NETLINK
+#define SOL_NETLINK	270
+#endif
+
 enum ipcon_type {
 	IPCON_TYPE_USER,
 	IPCON_TYPE_SERVICE,
@@ -28,6 +32,9 @@ struct ipcon_mng_info {
 	enum ipcon_type type;
 	struct ipcon_point *srv;
 	struct sockaddr_nl local;
+	int (*multicast_cb)(__u32 port,
+			unsigned int group,
+			void *para);
 };
 
 #define handler_to_info(a)	((struct ipcon_mng_info *) a)

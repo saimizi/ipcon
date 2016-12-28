@@ -1,4 +1,4 @@
-bin_PROGRAMS = nltest nltest2 nltest_client ipcon_reg ipcon_dump
+bin_PROGRAMS = nltest nltest2 nltest_client ipcon_reg ipcon_dump ipcon_multicast
 
 nltest_SOURCES = nltest.c
 nltest_CFLAGS = $(LIBNL_CFLAGS) $(LIBNL_GENL_CFLAGS)
@@ -20,6 +20,13 @@ ipcon_reg_CFLAGS =$(common_cflags) \
 		-I ${top_builddir}/lib/
 ipcon_reg_LDFLAGS= -L${top_builddir}/lib/.libs
 ipcon_reg_LDADD = -lipcon
+
+ipcon_multicast_SOURCES = ipcon_multicast.c
+ipcon_multicast_CFLAGS =$(common_cflags) \
+		-I ${top_builddir}/driver/ \
+		-I ${top_builddir}/lib/
+ipcon_multicast_LDFLAGS= -L${top_builddir}/lib/.libs
+ipcon_multicast_LDADD = -lipcon
 
 ipcon_dump_SOURCES = ipcon_dump.c
 ipcon_dump_CFLAGS =$(common_cflags) \

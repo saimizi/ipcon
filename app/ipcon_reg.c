@@ -27,10 +27,9 @@ int main(int argc, char *argv[])
 
 	do {
 		/* Create server handler */
-		handler = ipcon_create_handler();
+		handler = ipcon_create_handler(NULL);
 		if (!handler) {
 			ipcon_err("Failed to create libipcon handler.\n");
-			ipcon_free_handler(handler);
 			break;
 		}
 
@@ -92,7 +91,7 @@ int main(int argc, char *argv[])
 			char *msg = "Hello world!";
 
 			/* Create client handler */
-			handler2 = ipcon_create_handler();
+			handler2 = ipcon_create_handler(NULL);
 			if (!handler2) {
 				ipcon_err("Failed to create libipcon handler.\n");
 				break;

@@ -15,6 +15,10 @@ DEFINE_MUTEX(ipcon_mutex);
 static struct sock *ipcon_nl_sock;
 static struct ipcon_tree_node *cp_tree_root;
 
+
+static int ipcon_multicast(u32 pid, unsigned int group,
+		void *data, size_t size, gfp_t flags);
+
 static int ipcon_netlink_notify(struct notifier_block *nb,
 				  unsigned long state,
 				  void *_notify)
@@ -23,8 +27,24 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 
 	if (n) {
 		if (n->protocol == NETLINK_IPCON) {
-			ipcon_info("notify: protocol: %d  portid: %d state: %lx\n",
-				n->protocol, n->portid, state);
+			struct ipcon_kern_event ike;
+
+			if (state == NETLINK_URELEASE) {
+				ike.event = IPCON_SRV_REMOVE;
+				ike.port = n->portid;
+
+				ipcon_multicast(0,
+					IPCON_MC_GROUP_KERN,
+					&ike,
+					sizeof(ike),
+					GFP_KERNEL);
+			}
+
+			ipcon_info(
+				"notify: protocol: %d  portid: %d state: %lx\n",
+				n->protocol,
+				n->portid,
+				state);
 		}
 	}
 
@@ -71,8 +91,7 @@ void ipcon_nl_exit(void)
 		cp_free_tree(cp_tree_root);
 }
 
-int ipcon_nl_send_msg(u32 pid, int type, int seq,
-				void *data, size_t size)
+int ipcon_unicast(u32 pid, int type, int seq, void *data, size_t size)
 {
 	struct sk_buff *skb = NULL;
 	struct nlmsghdr *nlh = NULL;
@@ -97,10 +116,54 @@ int ipcon_nl_send_msg(u32 pid, int type, int seq,
 		nlh->nlmsg_type = type;
 
 		/*
-		 * netlink_unicast() takes ownership of the skb and
-		 * frees it itself.
+		 * netlink_unicast() called from nlmsg_unicast()
+		 * takes ownership of the skb and frees it itself.
 		 */
-		ret = netlink_unicast(ipcon_nl_sock, skb, pid, 0);
+		ret = nlmsg_unicast(ipcon_nl_sock, skb, pid);
+
+		if (ret > 0)
+			ret = 0;
+
+	} while (0);
+
+	return ret;
+}
+
+static int ipcon_multicast(u32 pid, unsigned int group,
+		void *data, size_t size, gfp_t flags)
+{
+	struct sk_buff *skb = NULL;
+	struct nlmsghdr *nlh = NULL;
+	int ret = -1;
+
+	do {
+		char *p = NULL;
+
+		if (!ipcon_nl_sock || !group)
+			break;
+
+		skb = alloc_skb(NLMSG_SPACE(size + sizeof(group)),
+				GFP_ATOMIC);
+		if (!skb)
+			break;
+
+		nlh = nlmsg_put(skb, pid, 0, 0, size, 0);
+		if (!nlh) {
+			kfree_skb(skb);
+			break;
+		}
+
+		p = (char *)nlmsg_data(nlh);
+
+		memcpy(p, &group, sizeof(group));
+		memcpy(p + sizeof(group), data, size);
+		nlh->nlmsg_type = IPCON_MULICAST_EVENT;
+
+		/*
+		 * netlink_broadcast_filtered() called from nlmsg_multicast
+		 * takes ownership of the skb and frees it itself.
+		 */
+		ret = nlmsg_multicast(ipcon_nl_sock, skb, pid, group, flags);
 
 		if (ret > 0)
 			ret = 0;
@@ -130,7 +193,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		switch (type) {
 		case IPCON_GET_SELFID:
 			selfid = NETLINK_CB(skb).portid;
-			error = ipcon_nl_send_msg(selfid,
+			error = ipcon_unicast(selfid,
 						type,
 						nlh->nlmsg_seq++,
 						&selfid,
@@ -197,7 +260,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				if (!nd)
 					error = -EINVAL;
 				else
-					error = ipcon_nl_send_msg(
+					error = ipcon_unicast(
 							nlh->nlmsg_pid,
 							type,
 							nlh->nlmsg_seq++,

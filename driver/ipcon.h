@@ -20,7 +20,24 @@ enum MSG_TYPE {
 	IPCON_SRV_DUMP = 0x14,
 	IPCON_SRV_RESLOVE = 0x15,
 	IPCON_USER = 0x16,
+	IPCON_MULICAST_EVENT = 0x17,
 	MSG_MAX,
+};
+
+#define IPCON_MC_GROUP_KERN	(1)
+
+enum IPCON_KERN_EVENT {
+	IPCON_SRV_ADD,
+	IPCON_SRV_REMOVE
+};
+
+struct ipcon_kern_event {
+	enum IPCON_KERN_EVENT	event;
+#ifdef __KERNEL__
+	u32 port;
+#else
+	__u32 port;
+#endif
 };
 
 #endif
