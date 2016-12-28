@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 	}
 
 
-	ret = snd_unicast_msg(sock, 0, IPCON_POINT_DUMP, NULL, 0);
+	ret = snd_unicast_msg(sock, 0, IPCON_SRV_DUMP, NULL, 0);
 
 	if (ret < 0) {
 		ret = -1;

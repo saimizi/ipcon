@@ -42,7 +42,7 @@ IPCON_HANDLER ipcon_create_handler(void)
 		ret = send_unicast_msg(imi,
 					0,
 					NLM_F_ACK | NLM_F_REQUEST,
-					IPCON_POINT_SELFID,
+					IPCON_GET_SELFID,
 					NULL,
 					1);
 
@@ -96,12 +96,12 @@ void ipcon_free_handler(IPCON_HANDLER handler)
 		ret = send_unicast_msg(imi,
 					0,
 					NLM_F_ACK | NLM_F_REQUEST,
-					IPCON_POINT_UNREG,
+					IPCON_SRV_UNREG,
 					imi->srv,
 					sizeof(*(imi->srv)));
 
 		if (!ret) {
-			ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
+			ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
 			libipcon_dbg("Unregister %s by free handler %s.\n",
 					imi->srv->name,
 					ret ? "failed":"success");
@@ -133,11 +133,11 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 	ret = send_unicast_msg(imi,
 				0,
 				NLM_F_ACK | NLM_F_REQUEST,
-				IPCON_POINT_REG,
+				IPCON_SRV_REG,
 				srv,
 				sizeof(*srv));
 	if (!ret) {
-		ret = wait_err_response(imi, 0, IPCON_POINT_REG);
+		ret = wait_err_response(imi, 0, IPCON_SRV_REG);
 		if (!ret) {
 			imi->type = IPCON_TYPE_SERVICE;
 			imi->srv = srv;
@@ -164,11 +164,11 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	ret = send_unicast_msg(imi,
 			0,
 			NLM_F_ACK | NLM_F_REQUEST,
-			IPCON_POINT_UNREG,
+			IPCON_SRV_UNREG,
 			imi->srv,
 			sizeof(*(imi->srv)));
 	if (!ret) {
-		ret = wait_err_response(imi, 0, IPCON_POINT_UNREG);
+		ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
 
 		libipcon_dbg("Unregister %s %s.\n",
 					imi->srv->name,
@@ -196,7 +196,7 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port)
 	ret = send_unicast_msg(imi,
 			0,
 			NLM_F_ACK | NLM_F_REQUEST,
-			IPCON_POINT_RESLOVE,
+			IPCON_SRV_RESLOVE,
 			name,
 			strlen(name) + 1);
 
@@ -273,7 +273,7 @@ int ipcon_send_unicast_msg(IPCON_HANDLER handler, __u32 port,
 	ret = send_unicast_msg(imi,
 			port,
 			NLM_F_REQUEST,
-			IPCON_POINT_USER,
+			IPCON_USER,
 			buf,
 			size);
 

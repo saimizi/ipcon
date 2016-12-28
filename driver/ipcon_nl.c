@@ -128,17 +128,17 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		u32 selfid = 0;
 
 		switch (type) {
-		case IPCON_POINT_SELFID:
+		case IPCON_GET_SELFID:
 			selfid = NETLINK_CB(skb).portid;
 			error = ipcon_nl_send_msg(selfid,
-						IPCON_POINT_SELFID,
+						type,
 						nlh->nlmsg_seq++,
 						&selfid,
 						sizeof(selfid));
 			ipcon_dbg("IPCON_POINT_SELFID: SELFID= %lu.\n",
 					(unsigned long)selfid);
 			break;
-		case IPCON_POINT_REG:
+		case IPCON_SRV_REG:
 			ip = NLMSG_DATA(nlh);
 			if (!ip || !strlen(ip->name)) {
 				error = -EINVAL;
@@ -162,7 +162,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			}
 
 			break;
-		case IPCON_POINT_UNREG:
+		case IPCON_SRV_UNREG:
 			ip = NLMSG_DATA(nlh);
 			if (!ip || !strlen(ip->name)) {
 				error = -EINVAL;
@@ -188,7 +188,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			}
 
 			break;
-		case IPCON_POINT_RESLOVE:
+		case IPCON_SRV_RESLOVE:
 			srv_name = NLMSG_DATA(nlh);
 			if (!srv_name || !strlen(srv_name)) {
 				error = -EINVAL;
@@ -199,18 +199,14 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				else
 					error = ipcon_nl_send_msg(
 							nlh->nlmsg_pid,
-							IPCON_POINT_SELFID,
+							type,
 							nlh->nlmsg_seq++,
 							&nd->port,
 							sizeof(nd->port));
 			}
 			break;
-		case IPCON_POINT_DUMP:
+		case IPCON_SRV_DUMP:
 			cp_print_tree(cp_tree_root);
-			break;
-		case MSG_STR:
-			ipcon_info("Rcev from port %d: %s\n",
-				nlh->nlmsg_pid, (char *)NLMSG_DATA(nlh));
 			break;
 		default:
 			error = -EINVAL;
