@@ -15,6 +15,26 @@ DEFINE_MUTEX(ipcon_mutex);
 static struct sock *ipcon_nl_sock;
 static struct ipcon_tree_node *cp_tree_root;
 
+static int ipcon_netlink_notify(struct notifier_block *nb,
+				  unsigned long state,
+				  void *_notify)
+{
+	struct netlink_notify *n = _notify;
+
+	if (n) {
+		if (n->protocol == NETLINK_IPCON) {
+			ipcon_info("notify: protocol: %d  portid: %d state: %lx\n",
+				n->protocol, n->portid, state);
+		}
+	}
+
+	return 0;
+}
+
+static struct notifier_block ipcon_netlink_notifier = {
+	.notifier_call = ipcon_netlink_notify,
+};
+
 int ipcon_nl_init(void)
 {
 	int ret = 0;
@@ -28,11 +48,20 @@ int ipcon_nl_init(void)
 		ret = -ENOMEM;
 	}
 
+	ret = netlink_register_notifier(&ipcon_netlink_notifier);
+	if (ret) {
+		netlink_kernel_release(ipcon_nl_sock);
+		ipcon_nl_sock = NULL;
+	}
+
 	return ret;
 }
 
 void ipcon_nl_exit(void)
 {
+
+	netlink_unregister_notifier(&ipcon_netlink_notifier);
+
 	if (ipcon_nl_sock)
 		netlink_kernel_release(ipcon_nl_sock);
 
