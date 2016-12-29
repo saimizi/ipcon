@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 
 	do {
 		/* Create server handler */
-		handler = ipcon_create_handler(NULL);
+		handler = ipcon_create_handler();
 		if (!handler) {
 			ipcon_err("Failed to create libipcon handler.\n");
 			break;
@@ -59,10 +59,13 @@ int main(int argc, char *argv[])
 				__u32 src_port = 0;
 				char *buf = NULL;
 				int len = 0;
+				unsigned int group = 0;
 
-				len = ipcon_rcv_msg(handler,
+				len = ipcon_rcv(handler,
 						&src_port,
-						(void **) &buf);
+						&group,
+						(void **) &buf,
+						0);
 
 				if (len < 0) {
 					ipcon_err("Receive msg from failed\n");
@@ -91,7 +94,7 @@ int main(int argc, char *argv[])
 			char *msg = "Hello world!";
 
 			/* Create client handler */
-			handler2 = ipcon_create_handler(NULL);
+			handler2 = ipcon_create_handler();
 			if (!handler2) {
 				ipcon_err("Failed to create libipcon handler.\n");
 				break;
@@ -107,7 +110,7 @@ int main(int argc, char *argv[])
 					argv[1], (unsigned long)srv_port);
 
 				/* Send message to server */
-				ipcon_send_unicast_msg(handler2,
+				ipcon_send_unicast(handler2,
 						srv_port,
 						msg,
 						strlen(msg) + 1);

@@ -142,7 +142,7 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 		if (!ipcon_nl_sock || !group)
 			break;
 
-		skb = alloc_skb(NLMSG_SPACE(size + sizeof(group)),
+		skb = alloc_skb(NLMSG_SPACE(size),
 				GFP_ATOMIC);
 		if (!skb)
 			break;
@@ -155,8 +155,7 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 
 		p = (char *)nlmsg_data(nlh);
 
-		memcpy(p, &group, sizeof(group));
-		memcpy(p + sizeof(group), data, size);
+		memcpy(p, data, size);
 		nlh->nlmsg_type = IPCON_MULICAST_EVENT;
 
 		/*

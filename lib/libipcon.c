@@ -8,10 +8,7 @@
 
 #include "libipcon_internal.h"
 
-IPCON_HANDLER ipcon_create_handler(
-	int (*multicast_cb)(__u32 port,
-			unsigned int group,
-			void *para))
+IPCON_HANDLER ipcon_create_handler(void)
 {
 	struct ipcon_mng_info *imi = NULL;
 	int ret = 0;
@@ -35,7 +32,6 @@ IPCON_HANDLER ipcon_create_handler(
 		imi->local.nl_family = AF_NETLINK;
 		imi->local.nl_pid = NLPORT;
 		imi->local.nl_groups = 0;
-		imi->multicast_cb = multicast_cb;
 
 		ret = bind(imi->sk, (const struct sockaddr *) &(imi->local),
 							sizeof(imi->local));
@@ -53,10 +49,11 @@ IPCON_HANDLER ipcon_create_handler(
 
 		if (!ret) {
 			struct nlmsghdr *nlh = NULL;
+			struct sockaddr_nl from;
 
 			/* FIXME: Add timeout here */
 			while (1) {
-				ret = rcv_unicast_msg(imi, 0, &nlh);
+				ret = rcv_msg(imi, &from, &nlh, sizeof(__u32));
 				if (ret)
 					break;
 
@@ -207,10 +204,12 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port)
 
 	if (!ret) {
 		struct nlmsghdr *nlh = NULL;
+		struct sockaddr_nl from;
 
 		/* FIXME: Add timeout here */
 		while (1) {
-			ret = rcv_unicast_msg(imi, 0, &nlh);
+			ret = rcv_msg(imi, &from, &nlh,
+					sizeof(struct nlmsgerr));
 			if (ret)
 				break;
 
@@ -230,18 +229,22 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port)
 	return ret;
 }
 
-int ipcon_rcv_msg(IPCON_HANDLER handler, __u32 *port, void **buf)
+int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
+		unsigned int *group, void **buf, __u32 max_msg_size)
 {
 	int ret = 0;
 	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	int data_size = 0;
+	__u32 data_size = 0;
+	struct sockaddr_nl from;
 
 	if (!imi)
 		return -EINVAL;
 
-	while (1) {
-		ret = rcv_unicast_msg(imi, 0, &nlh);
+	memset(&from, 0, sizeof(from));
+
+	do {
+		ret = rcv_msg(imi, &from, &nlh, max_msg_size);
 		if (!ret) {
 			if (nlh->nlmsg_type == NLMSG_ERROR) {
 				struct nlmsgerr *nlerr;
@@ -252,44 +255,30 @@ int ipcon_rcv_msg(IPCON_HANDLER handler, __u32 *port, void **buf)
 
 				break;
 
-			} else if (nlh->nlmsg_type == IPCON_MULICAST_EVENT) {
-				char *para = NLMSG_DATA(nlh);
-				unsigned int group = 0;
-
-				if (imi->multicast_cb) {
-					memcpy(&group, para, sizeof(group));
-					ret = imi->multicast_cb(
-						nlh->nlmsg_pid,
-						group,
-						(void *)(para + sizeof(group)));
-				}
-
-				free(nlh);
-
 			} else {
 				char *tmp_buf = NULL;
 
-				data_size = (int)(nlh->nlmsg_len -
-						NLMSG_HDRLEN);
+				data_size = (nlh->nlmsg_len - NLMSG_HDRLEN);
 				tmp_buf = (char *)malloc((size_t)data_size);
 				memcpy(tmp_buf, NLMSG_DATA(nlh),
 						(size_t)data_size);
 				*buf = tmp_buf;
-				ret = data_size;
-				*port = nlh->nlmsg_pid;
+				ret = (int)data_size;
+				*port = from.nl_pid;
+				*group = from.nl_groups;
 				free(nlh);
 
 				break;
 			}
 
 		}
-	}
+	} while (0);
 
 	return ret;
 }
 
-int ipcon_send_unicast_msg(IPCON_HANDLER handler, __u32 port,
-					void *buf, size_t size)
+int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
+				void *buf, size_t size)
 {
 	int ret = 0;
 	struct nlmsghdr *nlh = NULL;

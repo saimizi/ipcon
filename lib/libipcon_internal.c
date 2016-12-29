@@ -84,10 +84,10 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 	return ret;
 }
 
-static int rcv_msg(struct ipcon_mng_info *imi, __u32 port,
-				__u32 group, struct nlmsghdr **nlh)
+int rcv_msg(struct ipcon_mng_info *imi, struct sockaddr_nl *from,
+		struct nlmsghdr **nlh, __u32 max_msg_size)
 {
-	struct sockaddr_nl src;
+	;
 	struct iovec iov;
 	struct msghdr msg;
 	ssize_t len = 0;
@@ -95,21 +95,21 @@ static int rcv_msg(struct ipcon_mng_info *imi, __u32 port,
 	if (!imi || !nlh)
 		return -EINVAL;
 
-	*nlh = alloc_nlmsg(MAX_PAYLOAD_SIZE);
+	if (!max_msg_size)
+		*nlh = alloc_nlmsg(MAX_PAYLOAD_SIZE);
+	else
+		*nlh = alloc_nlmsg(max_msg_size);
+
 	if (*nlh == NULL) {
 		libipcon_err("Failed to alloc netlink msg.\n");
 		return -ENOMEM;
 	}
 
-	src.nl_family = AF_NETLINK;
-	src.nl_pid = port;
-	src.nl_groups = group;
-
 	iov.iov_base = (void *)(*nlh);
 	iov.iov_len = (*nlh)->nlmsg_len;
 
-	msg.msg_name = (void *)&src;
-	msg.msg_namelen = sizeof(struct sockaddr_nl);
+	msg.msg_name = (void *)from;
+	msg.msg_namelen = sizeof(*from);
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
@@ -120,24 +120,19 @@ static int rcv_msg(struct ipcon_mng_info *imi, __u32 port,
 	return 0;
 }
 
-int rcv_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
-			struct nlmsghdr **nlh)
-{
-	return rcv_msg(imi, port, 0, nlh);
-}
-
 int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt)
 {
 	int ret = 0;
 	struct nlmsgerr *nlerr;
 	struct nlmsghdr *nlh = NULL;
+	struct sockaddr_nl from;
 
 	if (!imi)
 		return -EINVAL;
 
 	/* FIXME: Add timeout... */
 	do {
-		ret = rcv_unicast_msg(imi, port, &nlh);
+		ret = rcv_msg(imi, &from, &nlh, sizeof(*nlerr));
 		if (!ret) {
 			if (nlh->nlmsg_type != NLMSG_ERROR) {
 				free(nlh);

@@ -32,9 +32,6 @@ struct ipcon_mng_info {
 	enum ipcon_type type;
 	struct ipcon_point *srv;
 	struct sockaddr_nl local;
-	int (*multicast_cb)(__u32 port,
-			unsigned int group,
-			void *para);
 };
 
 #define handler_to_info(a)	((struct ipcon_mng_info *) a)
@@ -43,7 +40,7 @@ struct ipcon_mng_info {
 #define MAX_PAYLOAD_SIZE	(4 * 1024)
 int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 		enum MSG_TYPE mt, void *payload, unsigned long payload_size);
-int rcv_unicast_msg(struct ipcon_mng_info *imi, __u32 port,
-			struct nlmsghdr **nlh);
+int rcv_msg(struct ipcon_mng_info *imi, struct sockaddr_nl *from,
+		struct nlmsghdr **nlh, __u32 max_msg_size);
 int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt);
 #endif

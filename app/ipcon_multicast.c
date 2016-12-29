@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
 	do {
 		/* Create server handler */
-		handler = ipcon_create_handler(multicast_cb);
+		handler = ipcon_create_handler();
 		if (!handler) {
 			ipcon_err("Failed to create libipcon handler.\n");
 			break;
@@ -62,10 +62,13 @@ int main(int argc, char *argv[])
 			__u32 src_port = 0;
 			char *buf = NULL;
 			int len = 0;
+			unsigned int group = 0;
 
-			len = ipcon_rcv_msg(handler,
+			len = ipcon_rcv(handler,
 					&src_port,
-					(void **) &buf);
+					&group,
+					(void **) &buf,
+					sizeof(struct ipcon_kern_event));
 
 			if (len < 0) {
 				ipcon_err("Receive msg from failed\n");
@@ -73,10 +76,8 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			ipcon_info("Msg from port %lu size= %d: %s\n",
-					(unsigned long)src_port, len, buf);
+			multicast_cb(src_port, group, buf);
 			free(buf);
-			break;
 		}
 
 			/* Free handler */
