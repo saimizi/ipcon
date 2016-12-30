@@ -18,7 +18,6 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 		unsigned int *group, void **buf, __u32 max_msg_size);
 int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 				void *buf, size_t size);
-int ipcon_send_multicast(IPCON_HANDLER handler, unsigned int group,
-				void *buf, size_t size);
+int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size);
 int ipcon_join_group(IPCON_HANDLER handler, unsigned int group);
 #endif

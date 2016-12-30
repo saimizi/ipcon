@@ -341,15 +341,14 @@ int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 	return ret;
 }
 
-int ipcon_send_multicast(IPCON_HANDLER handler, unsigned int group,
-				void *buf, size_t size)
+int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	int data_size = 0;
 	char *new_buf = NULL;
 
-	if (!imi || !group || !buf || !size)
+	if (!imi || !buf || !size || !imi->srv || !imi->srv->group)
 		return -EINVAL;
 
 	ret = send_unicast_msg(imi,

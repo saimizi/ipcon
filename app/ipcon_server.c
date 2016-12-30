@@ -73,7 +73,6 @@ int main(int argc, char *argv[])
 			}
 
 			ret = ipcon_send_multicast(handler,
-					srv_group,
 					buf,
 					strlen(buf) + 1);
 
