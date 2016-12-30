@@ -265,7 +265,7 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 				*buf = tmp_buf;
 				ret = (int)data_size;
 				*port = from.nl_pid;
-				*group = from.nl_groups;
+				*group = get_group(from.nl_groups);
 				free(nlh);
 
 				break;

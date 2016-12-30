@@ -36,8 +36,20 @@ struct ipcon_mng_info {
 
 #define handler_to_info(a)	((struct ipcon_mng_info *) a)
 #define info_to_handler(a)	((IPCON_HANDLER) a)
-
 #define MAX_PAYLOAD_SIZE	(4 * 1024)
+
+static unsigned int get_group(__u32 grp_mask)
+{
+	unsigned int grp = 0;
+
+	while (grp_mask) {
+		grp_mask = grp_mask >> 1;
+		grp++;
+	}
+
+	return grp;
+}
+
 int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 		enum MSG_TYPE mt, void *payload, unsigned long payload_size);
 int rcv_msg(struct ipcon_mng_info *imi, struct sockaddr_nl *from,

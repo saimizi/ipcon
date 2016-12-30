@@ -51,7 +51,10 @@ int main(int argc, char *argv[])
 
 		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN);
 		if (ret < 0) {
-			ipcon_err("Failed to join IPCON_MC_GROUP_KERN.\n");
+			ipcon_err("Failed to join group %d %s(%d).\n",
+					IPCON_MC_GROUP_KERN,
+					strerror(-ret),
+					ret);
 			ipcon_free_handler(handler);
 			break;
 		}
