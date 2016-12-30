@@ -9,8 +9,12 @@
 
 #define IPCON_MAX_POINT_NAME	128
 
+#define IPCON_MAX_GROUP		32
+#define IPCON_AUOTO_GROUP	(IPCON_MAX_GROUP + 1)
+
 struct ipcon_point {
 	char name[IPCON_MAX_POINT_NAME];
+	unsigned int group;
 };
 
 enum MSG_TYPE {
@@ -39,5 +43,12 @@ struct ipcon_kern_event {
 	__u32 port;
 #endif
 };
+
+struct ipcon_kern_rsp {
+	union {
+		unsigned int group;
+	};
+};
+
 
 #endif

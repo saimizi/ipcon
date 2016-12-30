@@ -116,12 +116,12 @@ void ipcon_free_handler(IPCON_HANDLER handler)
 	free(imi);
 }
 
-int ipcon_register_service(IPCON_HANDLER handler, char *name)
+int ipcon_register_service(IPCON_HANDLER handler, char *name,
+				unsigned int *group)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	struct ipcon_point *srv = NULL;
-	struct nlmsgerr nlerr;
 
 	if (!imi || !name || !strlen(name))
 		return -EINVAL;
@@ -130,23 +130,59 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name)
 	if (!srv)
 		return -ENOMEM;
 
-	strcpy(srv->name, name),
+	strcpy(srv->name, name);
+	if (group)
+		srv->group = *group;
+	else
+		srv->group = 0;
 
+	libipcon_dbg("%s-%d Group:%u\n", __func__, __LINE__, srv->group);
 	ret = send_unicast_msg(imi,
 				0,
 				NLM_F_ACK | NLM_F_REQUEST,
 				IPCON_SRV_REG,
 				srv,
 				sizeof(*srv));
+
 	if (!ret) {
-		ret = wait_err_response(imi, 0, IPCON_SRV_REG);
-		if (!ret) {
+		struct nlmsgerr *nlerr;
+		struct nlmsghdr *nlh = NULL;
+		struct sockaddr_nl from;
+		struct ipcon_kern_rsp *ikr;
+
+
+		do {
+			/* FIXME: Add caching function */
+			ret = rcv_msg(imi, &from, &nlh, MAX_PAYLOAD_SIZE);
+			if (ret)
+				break;
+
+			if (nlh->nlmsg_type == NLMSG_ERROR) {
+				nlerr = NLMSG_DATA(nlh);
+				if (nlerr->msg.nlmsg_type !=
+					IPCON_SRV_REG) {
+					free(nlh);
+					continue;
+				}
+
+				ret = nlerr->error;
+				free(nlh);
+				break;
+			}
+
+			ikr = NLMSG_DATA(nlh);
+			*group = srv->group = ikr->group;
+
 			imi->type = IPCON_TYPE_SERVICE;
 			imi->srv = srv;
-		}
+			free(nlh);
+		} while (1);
 	}
 
-	libipcon_dbg("Register %s %s.\n", name, ret ? "failed":"success");
+	libipcon_dbg("Register %s (group: %d) %s.\n",
+			name,
+			srv->group,
+			ret ? "failed":"success");
 
 	return ret;
 }

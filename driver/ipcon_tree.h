@@ -9,9 +9,11 @@
 #include "ipcon.h"
 #include "ipcon_dbg.h"
 
+
 struct ipcon_tree_node {
 	struct ipcon_point point;
 	u32 port;
+	unsigned int group;
 	struct ipcon_tree_node *parent;
 	struct ipcon_tree_node *left;
 	struct ipcon_tree_node *right;
@@ -23,6 +25,9 @@ static inline int cp_valid_node(struct ipcon_tree_node *node)
 		return 0;
 
 	if (node->port <= 0)
+		return 0;
+
+	if (node->group > IPCON_MAX_GROUP)
 		return 0;
 
 	if (strlen(node->point.name) == 0)

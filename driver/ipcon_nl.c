@@ -4,6 +4,7 @@
 
 #include <net/sock.h>
 #include <net/netlink.h>
+#include <asm/bitops.h>
 
 #include "ipcon.h"
 #include "ipcon_nl.h"
@@ -14,10 +15,26 @@ DEFINE_MUTEX(ipcon_mutex);
 
 static struct sock *ipcon_nl_sock;
 static struct ipcon_tree_node *cp_tree_root;
+static long int group_bitflag;
 
 
 static int ipcon_multicast(u32 pid, unsigned int group,
 		void *data, size_t size, gfp_t flags);
+
+static inline int group_inuse(int group)
+{
+	return test_bit(group - 1, &group_bitflag);
+}
+
+static inline void reg_group(int group)
+{
+	set_bit(group - 1, &group_bitflag);
+}
+
+static inline void unreg_group(int group)
+{
+	clear_bit(group - 1, &group_bitflag);
+}
 
 static int ipcon_netlink_notify(struct notifier_block *nb,
 				  unsigned long state,
@@ -68,6 +85,7 @@ int ipcon_nl_init(void)
 		ret = -ENOMEM;
 	}
 
+	set_bit(IPCON_MC_GROUP_KERN - 1, &group_bitflag);
 	ret = netlink_register_notifier(&ipcon_netlink_notifier);
 	if (ret) {
 		netlink_kernel_release(ipcon_nl_sock);
@@ -188,6 +206,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		struct ipcon_point *ip = NULL;
 		char *srv_name = NULL;
 		u32 selfid = 0;
+		struct ipcon_kern_rsp ikr;
 
 		switch (type) {
 		case IPCON_GET_SELFID:
@@ -202,28 +221,79 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			break;
 		case IPCON_SRV_REG:
 			ip = NLMSG_DATA(nlh);
-			if (!ip || !strlen(ip->name)) {
+			if (!ip ||
+				!strlen(ip->name) ||
+				(ip->group > IPCON_AUOTO_GROUP) ||
+				(ip->group == IPCON_MC_GROUP_KERN)) {
+
 				error = -EINVAL;
+
 			} else {
+				memset(&ikr, 0, sizeof(ikr));
+				ikr.group = ip->group;
+
+				switch (ikr.group) {
+				case 0:
+					/* No group required */
+					break;
+				case IPCON_AUOTO_GROUP:
+					/*
+					 * Auto group id
+					 * The lowest position returned from
+					 * ffs() is 1
+					 */
+					ikr.group = ffs(~group_bitflag);
+					set_bit(ikr.group, &group_bitflag);
+					break;
+				default: /* required group id */
+					if (group_inuse(ikr.group))
+						error = -EEXIST;
+					else
+						reg_group(ikr.group);
+
+					break;
+				}
+
+				if (error)
+					break;
+
 				nd = cp_alloc_node(ip, nlh->nlmsg_pid);
-				if (!nd)
+				if (!nd) {
 					error = -ENOMEM;
-				else
+				} else {
+					nd->group = ikr.group;
 					error = cp_insert(&cp_tree_root, nd);
-			}
+				}
 
-			if (error) {
-				if (nd)
-					cp_free_node(nd);
-				ipcon_err("Failed to register point.(%d)\n",
-						error);
-			} else {
-				ipcon_info("%s@%d registerred.\n",
-						nd->point.name,
-						nd->port);
-			}
+				if (error) {
+					if (nd)
+						cp_free_node(nd);
 
+					if (ikr.group)
+						unreg_group(ikr.group);
+
+					ipcon_err("Service register fail.(%d)\n",
+							error);
+				} else {
+					ipcon_info("%s@%d(%d) registerred.\n",
+							nd->point.name,
+							nd->port,
+							nd->point.group);
+
+					error = ipcon_unicast(
+							NETLINK_CB(skb).portid,
+							type,
+							nlh->nlmsg_seq++,
+							(void *)&ikr,
+							sizeof(ikr));
+
+					/* if success do not send nlmsgerr */
+					if (error && ikr.group)
+						unreg_group(ikr.group);
+				}
+			}
 			break;
+
 		case IPCON_SRV_UNREG:
 			ip = NLMSG_DATA(nlh);
 			if (!ip || !strlen(ip->name)) {
@@ -243,6 +313,9 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 						nlh->nlmsg_pid,
 						error);
 			} else {
+				if (nd->point.group)
+					clear_bit(ip->group, &group_bitflag);
+
 				cp_free_node(nd);
 				ipcon_info("%s@%d unregistered.\n",
 						ip->name,

@@ -16,6 +16,7 @@ static struct nlmsghdr *alloc_nlmsg(unsigned long payload_size)
 		if (nlh) {
 			nlh->nlmsg_len = NLMSG_SPACE(payload_size);
 			nlh->nlmsg_pid = 0;
+			nlh->nlmsg_seq = 0;
 			nlh->nlmsg_flags = 0;
 		}
 	}

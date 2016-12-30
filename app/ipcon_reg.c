@@ -24,6 +24,7 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	IPCON_HANDLER handler;
 	pid_t pid;
+	unsigned int group = IPCON_AUOTO_GROUP;
 
 	do {
 		/* Create server handler */
@@ -36,7 +37,7 @@ int main(int argc, char *argv[])
 		/* Register service */
 		ipcon_dbg("Register %s.\n", argv[1]);
 		if (argc > 1) {
-			ret = ipcon_register_service(handler, argv[1]);
+			ret = ipcon_register_service(handler, argv[1], &group);
 			if (ret) {
 				ipcon_err("Failed to register %s: %s (%d)\n",
 					argv[1], strerror(-ret), ret);
@@ -44,7 +45,8 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			ipcon_info("%s registered.\n", argv[1]);
+			ipcon_info("%s registered with group %d.\n",
+					argv[1], group);
 		} else {
 			ipcon_err("No service name specified.\n");
 			ipcon_free_handler(handler);
