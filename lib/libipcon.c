@@ -325,9 +325,7 @@ int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 				void *buf, size_t size)
 {
 	int ret = 0;
-	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	int data_size = 0;
 
 	if (!imi || !port)
 		return -EINVAL;
@@ -339,6 +337,56 @@ int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 			buf,
 			size);
 
+
+	return ret;
+}
+
+int ipcon_send_multicast(IPCON_HANDLER handler, unsigned int group,
+				void *buf, size_t size)
+{
+	int ret = 0;
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+	int data_size = 0;
+	char *new_buf = NULL;
+
+	if (!imi || !group || !buf || !size)
+		return -EINVAL;
+
+	ret = send_unicast_msg(imi,
+			0,
+			NLM_F_REQUEST | NLM_F_ACK,
+			IPCON_MULICAST_EVENT,
+			buf,
+			size);
+
+	if (!ret) {
+		struct nlmsgerr *nlerr;
+		struct nlmsghdr *nlh = NULL;
+		struct sockaddr_nl from;
+
+		do {
+			/* FIXME: Add caching function */
+			ret = rcv_msg(imi, &from, &nlh, sizeof(*nlerr));
+			if (ret)
+				break;
+
+			if (nlh->nlmsg_type != NLMSG_ERROR) {
+				free(nlh);
+				continue;
+			}
+
+			nlerr = NLMSG_DATA(nlh);
+			if (nlerr->msg.nlmsg_type != IPCON_MULICAST_EVENT) {
+				free(nlh);
+				continue;
+			}
+
+			ret = nlerr->error;
+			free(nlh);
+			break;
+
+		} while (1);
+	}
 
 	return ret;
 }

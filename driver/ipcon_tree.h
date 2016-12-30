@@ -47,5 +47,7 @@ int cp_walk_tree(struct ipcon_tree_node *root,
 		void *para, int order, int stop_on_error);
 void cp_free_tree(struct ipcon_tree_node *root);
 void cp_print_tree(struct ipcon_tree_node *root);
+struct ipcon_tree_node *cp_lookup_by_port(struct ipcon_tree_node *root,
+		u32 port);
 
 #endif

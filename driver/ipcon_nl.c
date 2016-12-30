@@ -175,6 +175,7 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 
 		memcpy(p, data, size);
 		nlh->nlmsg_type = IPCON_MULICAST_EVENT;
+		nlh->nlmsg_pid = pid;
 
 		/*
 		 * netlink_broadcast_filtered() called from nlmsg_multicast
@@ -347,6 +348,27 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			break;
 		case IPCON_SRV_DUMP:
 			cp_print_tree(cp_tree_root);
+			break;
+		case IPCON_MULICAST_EVENT:
+			nd = cp_lookup_by_port(cp_tree_root, nlh->nlmsg_pid);
+			if (!nd) {
+				error = -EINVAL;
+				break;
+			}
+
+			if (!nd->group || nd->group > 32) {
+				error = -EINVAL;
+				break;
+			}
+
+			/* FIXME: fix the size of data */
+			error = ipcon_multicast(
+					nlh->nlmsg_pid,
+					nd->group,
+					NLMSG_DATA(nlh),
+					(nlh->nlmsg_len - NLMSG_HDRLEN),
+					GFP_KERNEL);
+
 			break;
 		default:
 			error = -EINVAL;

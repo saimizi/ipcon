@@ -267,3 +267,40 @@ void cp_print_tree(struct ipcon_tree_node *root)
 {
 	cp_walk_tree(root, walk_print_node, NULL, 2, 0);
 }
+
+struct nd_search_info {
+	u32 port;
+	struct ipcon_tree_node *nd;
+};
+
+static int search_nd_by_port(struct ipcon_tree_node *nd, void *para)
+{
+	struct nd_search_info *nsi = (struct nd_search_info *)para;
+	int ret = 0;
+
+	if (nd->port == nsi->port) {
+		nsi->nd = nd;
+		ret = 1;
+	}
+
+	return ret;
+}
+
+struct ipcon_tree_node *cp_lookup_by_port(struct ipcon_tree_node *root,
+					u32 port)
+{
+	struct nd_search_info result;
+	int ret = 0;
+
+	if (!port || !root || !cp_valid_node(root))
+		return NULL;
+
+	memset(&result, 0, sizeof(result));
+	result.port = port;
+
+	ret = cp_walk_tree(root, search_nd_by_port, &result, 2, 1);
+	if (ret == 1)
+		return result.nd;
+
+	return NULL;
+}

@@ -77,6 +77,16 @@ int main(int argc, char *argv[])
 
 				ipcon_info("Msg from port %lu size= %d: %s\n",
 					(unsigned long)src_port, len, buf);
+
+				ret = ipcon_send_multicast(handler,
+						group,
+						buf,
+						len);
+
+				ipcon_info("Multicast msg to group %u %s\n",
+						group,
+						(ret < 0) ?
+							"failed" : "success");
 				free(buf);
 				break;
 			}

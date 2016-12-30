@@ -40,6 +40,8 @@ int main(int argc, char *argv[])
 {
 	int ret = 0;
 	IPCON_HANDLER handler;
+	unsigned int srv_group;
+	__u32 srv_port;
 
 	do {
 		/* Create server handler */
@@ -59,6 +61,26 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		/* Find service */
+		ret = ipcon_find_service(handler,
+					"ipcon_server",
+					&srv_port,
+					&srv_group);
+		if (ret < 0) {
+			ipcon_err("Failed to find service ipcon_server.\n");
+			ipcon_free_handler(handler);
+			break;
+		}
+
+		ret = ipcon_join_group(handler, srv_group);
+		if (ret < 0) {
+			ipcon_err("Failed to join group %d %s(%d).\n",
+					srv_group,
+					strerror(-ret),
+					ret);
+			ipcon_free_handler(handler);
+			break;
+		}
 
 		/* Wait client */
 		while (1) {
@@ -79,12 +101,21 @@ int main(int argc, char *argv[])
 				break;
 			}
 
+			if (group == srv_group) {
+				ipcon_info("Multicast msg from %u@%u :%s\n",
+						srv_group,
+						src_port,
+						buf);
+				free(buf);
+				continue;
+			}
+
 			multicast_cb(src_port, group, buf);
 			free(buf);
 		}
 
-			/* Free handler */
-			ipcon_free_handler(handler);
+		/* Free handler */
+		ipcon_free_handler(handler);
 
 
 	} while (0);
