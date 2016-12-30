@@ -47,6 +47,14 @@ struct ipcon_kern_event {
 struct ipcon_kern_rsp {
 	union {
 		unsigned int group;
+		struct {
+			unsigned int grp;
+#ifdef __KERNEL__
+			u32 port;
+#else
+			__u32 port;
+#endif
+		};
 	};
 };
 

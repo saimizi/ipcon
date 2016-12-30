@@ -93,6 +93,7 @@ int main(int argc, char *argv[])
 		} else {
 			IPCON_HANDLER handler2;
 			__u32 srv_port;
+			unsigned int group;
 			char *msg = "Hello world!";
 
 			/* Create client handler */
@@ -103,13 +104,19 @@ int main(int argc, char *argv[])
 			}
 
 			/* Find service */
-			ret = ipcon_find_service(handler2, argv[1], &srv_port);
+			ret = ipcon_find_service(handler2,
+						argv[1],
+						&srv_port,
+						&group);
 			if (ret < 0) {
 				ipcon_err("Failed to find service %s.\n",
 						argv[1]);
 			} else {
-				ipcon_info("service %s is at port %lu.\n",
-					argv[1], (unsigned long)srv_port);
+				ipcon_info(
+					"service %s at port %lu (grp: %u).\n",
+					argv[1],
+					(unsigned long)srv_port,
+					group);
 
 				/* Send message to server */
 				ipcon_send_unicast(handler2,

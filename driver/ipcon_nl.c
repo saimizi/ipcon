@@ -328,16 +328,21 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (!srv_name || !strlen(srv_name)) {
 				error = -EINVAL;
 			} else {
+				memset(&ikr, 0, sizeof(ikr));
 				nd = cp_lookup(cp_tree_root, srv_name);
-				if (!nd)
+				if (!nd) {
 					error = -EINVAL;
-				else
-					error = ipcon_unicast(
-							nlh->nlmsg_pid,
-							type,
-							nlh->nlmsg_seq++,
-							&nd->port,
-							sizeof(nd->port));
+					break;
+				}
+
+				ikr.group = nd->group;
+				ikr.port = nd->port;
+				error = ipcon_unicast(
+						nlh->nlmsg_pid,
+						type,
+						nlh->nlmsg_seq++,
+						&ikr,
+						sizeof(ikr));
 			}
 			break;
 		case IPCON_SRV_DUMP:

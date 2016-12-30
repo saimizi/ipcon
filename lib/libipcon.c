@@ -150,7 +150,6 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 		struct sockaddr_nl from;
 		struct ipcon_kern_rsp *ikr;
 
-
 		do {
 			/* FIXME: Add caching function */
 			ret = rcv_msg(imi, &from, &nlh, MAX_PAYLOAD_SIZE);
@@ -223,7 +222,8 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	return ret;
 }
 
-int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port)
+int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
+		unsigned int *group)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
@@ -239,27 +239,35 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port)
 			strlen(name) + 1);
 
 	if (!ret) {
+		struct nlmsgerr *nlerr;
 		struct nlmsghdr *nlh = NULL;
 		struct sockaddr_nl from;
+		struct ipcon_kern_rsp *ikr;
 
-		/* FIXME: Add timeout here */
-		while (1) {
-			ret = rcv_msg(imi, &from, &nlh,
-					sizeof(struct nlmsgerr));
+		do {
+			/* FIXME: Add timeout here */
+			ret = rcv_msg(imi, &from, &nlh, MAX_PAYLOAD_SIZE);
 			if (ret)
 				break;
 
 			if (nlh->nlmsg_type == NLMSG_ERROR) {
-				struct nlmsgerr *nlerr;
-
 				nlerr = NLMSG_DATA(nlh);
+				if (nlerr->msg.nlmsg_type !=
+					IPCON_SRV_RESLOVE) {
+					free(nlh);
+					continue;
+				}
+
 				ret = nlerr->error;
 				free(nlh);
 				break;
 			}
 
-			*srv_port = *(__u32 *)NLMSG_DATA(nlh);
-		}
+			ikr = NLMSG_DATA(nlh);
+			*group = ikr->group;
+			*srv_port = ikr->port;
+			free(nlh);
+		} while (1);
 	}
 
 	return ret;
