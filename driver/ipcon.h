@@ -37,11 +37,7 @@ enum IPCON_KERN_EVENT {
 
 struct ipcon_kern_event {
 	enum IPCON_KERN_EVENT	event;
-#ifdef __KERNEL__
-	u32 port;
-#else
 	__u32 port;
-#endif
 };
 
 struct ipcon_kern_rsp {
@@ -49,14 +45,35 @@ struct ipcon_kern_rsp {
 		unsigned int group;
 		struct {
 			unsigned int grp;
-#ifdef __KERNEL__
-			u32 port;
-#else
 			__u32 port;
-#endif
 		};
 	};
 };
 
+struct ipcon_msghdr {
+	__u32 rport;
+	__u32 total_size;
+	__u32 size;
+};
+
+#define IPCON_MSG_ALIGNTO	4U
+#define IPCON_MSG_ALIGN(len) \
+	(((len)+IPCON_MSG_ALIGNTO-1) & ~(IPCON_MSG_ALIGNTO-1))
+#define IPCON_MSG_HDRLEN \
+	((int) IPCON_MSG_ALIGN(sizeof(struct ipcon_msghdr)))
+#define IPCON_MSG_LENGTH(len) ((len) + IPCON_MSG_HDRLEN)
+#define IPCON_MSG_SPACE(len) IPCON_MSG_ALIGN(IPCON_MSG_LENGTH(len))
+#define IPCON_MSG_DATA(ipconh) \
+		((void *)(((char *)ipconh) + IPCON_MSG_LENGTH(0)))
+
+#define IPCON_MSG_OK(ipconh, len) \
+		((len) >= (int)sizeof(struct ipcon_msghdr) && \
+		(nlh)->total_size >= sizeof(struct ipcon_msghdr) && \
+		(nlh)->total_size <= (len))
+
+#define IPCON_MSG_NEXT(ipconh, len) \
+		((len) -= IPCON_MSG_ALIGN((ipconh)->total_size), \
+		(struct ipcon_msghdr *)(((char *)(ipconh)) + \
+		NLMSG_ALIGN((ipconh)->total_len)))
 
 #endif

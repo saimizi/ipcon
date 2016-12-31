@@ -152,30 +152,30 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 {
 	struct sk_buff *skb = NULL;
 	struct nlmsghdr *nlh = NULL;
-	int ret = -1;
+	int ret = 0;
 
 	do {
-		char *p = NULL;
-
-		if (!ipcon_nl_sock || !group)
+		if (!ipcon_nl_sock || !group) {
+			ret = -EINVAL;
 			break;
+		}
 
 		skb = alloc_skb(NLMSG_SPACE(size),
 				GFP_ATOMIC);
-		if (!skb)
+		if (!skb) {
+			ret = -ENOMEM;
 			break;
+		}
 
-		nlh = nlmsg_put(skb, pid, 0, 0, size, 0);
+		nlh = nlmsg_put(skb, pid, 0, IPCON_MULICAST_EVENT, size, 0);
 		if (!nlh) {
+			ret = -ENOMEM;
 			kfree_skb(skb);
 			break;
 		}
 
-		p = (char *)nlmsg_data(nlh);
-
-		memcpy(p, data, size);
-		nlh->nlmsg_type = IPCON_MULICAST_EVENT;
-		nlh->nlmsg_pid = pid;
+		memcpy(nlmsg_data(nlh), data, size);
+		nlmsg_end(skb, nlh);
 
 		/*
 		 * netlink_broadcast_filtered() called from nlmsg_multicast
@@ -208,6 +208,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		char *srv_name = NULL;
 		u32 selfid = 0;
 		struct ipcon_kern_rsp ikr;
+		struct ipcon_msghdr *im = NULL;
 
 		switch (type) {
 		case IPCON_GET_SELFID:
@@ -350,6 +351,8 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			cp_print_tree(cp_tree_root);
 			break;
 		case IPCON_MULICAST_EVENT:
+			im = NLMSG_DATA(nlh);
+
 			nd = cp_lookup_by_port(cp_tree_root, nlh->nlmsg_pid);
 			if (!nd) {
 				error = -EINVAL;
@@ -361,13 +364,12 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
-			/* FIXME: fix the size of data */
 			error = ipcon_multicast(
 					nlh->nlmsg_pid,
 					nd->group,
-					NLMSG_DATA(nlh),
-					(nlh->nlmsg_len - NLMSG_HDRLEN),
-					GFP_KERNEL);
+					im,
+					im->total_size,
+					GFP_ATOMIC);
 
 			break;
 		default:

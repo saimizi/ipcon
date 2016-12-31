@@ -6,6 +6,7 @@
 #include <linux/socket.h>
 #include <errno.h>
 
+#include "libipcon.h"
 #include "libipcon_internal.h"
 
 IPCON_HANDLER ipcon_create_handler(void)
@@ -279,7 +280,6 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 	int ret = 0;
 	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	__u32 data_size = 0;
 	struct sockaddr_nl from;
 
 	if (!imi)
@@ -299,17 +299,42 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 
 				break;
 
+			} else  if ((nlh->nlmsg_type == IPCON_MULICAST_EVENT) &&
+					(get_group(from.nl_groups) !=
+						IPCON_MC_GROUP_KERN)) {
+
+				struct ipcon_msghdr *im = NLMSG_DATA(nlh);
+				char *tmp_buf = NULL;
+
+				tmp_buf = (char *)malloc((size_t)im->size);
+				if (!tmp_buf) {
+					ret = -ENOMEM;
+					break;
+				}
+
+				memcpy(tmp_buf, IPCON_MSG_DATA(im),
+						(size_t)im->size);
+
+				*buf = tmp_buf;
+				*port = im->rport;
+				*group = get_group(from.nl_groups);
+				ret = (int)im->size;
+				free(nlh);
+
+				break;
+
 			} else {
 				char *tmp_buf = NULL;
+				__u32 data_size = 0;
 
 				data_size = (nlh->nlmsg_len - NLMSG_HDRLEN);
 				tmp_buf = (char *)malloc((size_t)data_size);
 				memcpy(tmp_buf, NLMSG_DATA(nlh),
 						(size_t)data_size);
 				*buf = tmp_buf;
-				ret = (int)data_size;
 				*port = from.nl_pid;
 				*group = get_group(from.nl_groups);
+				ret = (int)data_size;
 				free(nlh);
 
 				break;
@@ -345,18 +370,29 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	int data_size = 0;
-	char *new_buf = NULL;
+	struct ipcon_msghdr *im = NULL;
 
 	if (!imi || !buf || !size || !imi->srv || !imi->srv->group)
 		return -EINVAL;
+
+	im = (struct ipcon_msghdr *) malloc(IPCON_MSG_SPACE(size));
+	if (!im)
+		return -ENOMEM;
+
+	im->rport = imi->local.nl_pid;
+	im->size = (__u32)size;
+	im->total_size = IPCON_MSG_SPACE(size);
+
+	memcpy(IPCON_MSG_DATA(im), buf, size);
 
 	ret = send_unicast_msg(imi,
 			0,
 			NLM_F_REQUEST | NLM_F_ACK,
 			IPCON_MULICAST_EVENT,
-			buf,
-			size);
+			im,
+			im->total_size);
+
+	free(im);
 
 	if (!ret) {
 		struct nlmsgerr *nlerr;

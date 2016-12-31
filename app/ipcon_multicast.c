@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
 					&src_port,
 					&group,
 					(void **) &buf,
-					sizeof(struct ipcon_kern_event));
+					0);
 
 			if (len < 0) {
 				ipcon_err("Receive msg from failed\n");
