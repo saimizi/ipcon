@@ -6,7 +6,7 @@
 #include <linux/errno.h>
 #include "ipcon_tree.h"
 
-struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port)
+struct ipcon_tree_node *cp_alloc_node(struct ipcon_srv *p, int port)
 {
 	struct ipcon_tree_node *newnd;
 
@@ -21,7 +21,7 @@ struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port)
 	if (!newnd)
 		return NULL;
 
-	memcpy(&newnd->point, p, sizeof(*p));
+	memcpy(&newnd->srv, p, sizeof(*p));
 	newnd->left = newnd->right = newnd->parent = NULL;
 	newnd->port = port;
 
@@ -30,10 +30,7 @@ struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port)
 
 void cp_free_node(struct ipcon_tree_node *nd)
 {
-	if (nd) {
-		ipcon_info("Free point %s@%d.\n", nd->point.name, nd->port);
-		kfree(nd);
-	}
+	kfree(nd);
 }
 
 int cp_detach_node(struct ipcon_tree_node **root, struct ipcon_tree_node *nd)
@@ -85,7 +82,7 @@ struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name)
 	result = root;
 
 	while (result) {
-		int ret = strcmp(result->point.name, name);
+		int ret = strcmp(result->srv.name, name);
 
 		if (ret == 0)
 			break;
@@ -97,15 +94,6 @@ struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name)
 			result = NULL;
 	}
 
-	if (result)
-		ipcon_dbg("%s-%d found %s for %s\n",
-				__func__,
-				__LINE__,
-				result->point.name,
-				name);
-	else
-		ipcon_dbg("%s-%d Not found for %s.\n",
-				__func__, __LINE__, name);
 	return result;
 }
 
@@ -126,7 +114,7 @@ int cp_comp(struct ipcon_tree_node *n1, struct ipcon_tree_node *n2)
 	if (!cp_valid_node(n1) || !cp_valid_node(n2))
 		return -EINVAL;
 
-	ret = strcmp(n1->point.name, n2->point.name);
+	ret = strcmp(n1->srv.name, n2->srv.name);
 	if (ret < 0)
 		ret = -1;
 
@@ -258,7 +246,7 @@ void cp_free_tree(struct ipcon_tree_node *root)
 static int walk_print_node(struct ipcon_tree_node *nd, void *para)
 {
 	if (nd)
-		ipcon_info("Point: %s@%d\n", nd->point.name, nd->port);
+		ipcon_info("Service: %s@%d\n", nd->srv.name, nd->port);
 
 	return 0;
 }

@@ -67,7 +67,8 @@ int main(int argc, char *argv[])
 					&srv_port,
 					&srv_group);
 		if (ret < 0) {
-			ipcon_err("Failed to find service ipcon_server.\n");
+			ipcon_err("Failed to find service ipcon_server. %s(%d)\n",
+					strerror(-ret), ret);
 			ipcon_free_handler(handler);
 			break;
 		}

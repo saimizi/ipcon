@@ -9,6 +9,7 @@ VER_0 {
 		ipcon_send_unicast;
 		ipcon_send_multicast;
 		ipcon_join_group;
+		ipcon_get_info;
 	local:
 		*;
 };

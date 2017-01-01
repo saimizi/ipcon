@@ -11,14 +11,12 @@ static struct nlmsghdr *alloc_nlmsg(unsigned long payload_size)
 {
 	struct nlmsghdr *nlh = NULL;
 
-	if (payload_size > 0) {
-		nlh = (struct nlmsghdr *) malloc(NLMSG_SPACE(payload_size));
-		if (nlh) {
-			nlh->nlmsg_len = NLMSG_SPACE(payload_size);
-			nlh->nlmsg_pid = 0;
-			nlh->nlmsg_seq = 0;
-			nlh->nlmsg_flags = 0;
-		}
+	nlh = (struct nlmsghdr *) malloc(NLMSG_SPACE(payload_size));
+	if (nlh) {
+		nlh->nlmsg_len = NLMSG_SPACE(payload_size);
+		nlh->nlmsg_pid = 0;
+		nlh->nlmsg_seq = 0;
+		nlh->nlmsg_flags = 0;
 	}
 
 	return nlh;
@@ -57,7 +55,7 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 	struct nlmsghdr *nlh = NULL;
 	int ret = 0;
 
-	if (payload_size >= MAX_PAYLOAD_SIZE) {
+	if (payload_size >= MAX_IPCONMSG_LEN) {
 		libipcon_err("%s payload_size over.\n", __func__);
 		return -EINVAL;
 	}
@@ -69,7 +67,7 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 	}
 
 	nlh->nlmsg_type = mt;
-	nlh->nlmsg_pid = imi->local.nl_pid;
+	nlh->nlmsg_pid = imi->port;
 	nlh->nlmsg_flags = flag;
 
 	if (payload && (payload_size > 0))
@@ -93,11 +91,11 @@ int rcv_msg(struct ipcon_mng_info *imi, struct sockaddr_nl *from,
 	struct msghdr msg;
 	ssize_t len = 0;
 
-	if (!imi || !nlh)
+	if (!imi || !nlh || max_msg_size > MAX_IPCONMSG_LEN)
 		return -EINVAL;
 
 	if (!max_msg_size)
-		*nlh = alloc_nlmsg(MAX_PAYLOAD_SIZE);
+		*nlh = alloc_nlmsg(MAX_IPCONMSG_LEN);
 	else
 		*nlh = alloc_nlmsg(max_msg_size);
 

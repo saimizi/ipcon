@@ -12,6 +12,7 @@
 IPCON_HANDLER ipcon_create_handler(void)
 {
 	struct ipcon_mng_info *imi = NULL;
+	struct sockaddr_nl local;
 	int ret = 0;
 
 	do {
@@ -28,14 +29,14 @@ IPCON_HANDLER ipcon_create_handler(void)
 		}
 
 		imi->type = IPCON_TYPE_USER;
-		imi->srv = NULL;
+		memset(&imi->srv, 0, sizeof(struct ipcon_srv));
 
-		imi->local.nl_family = AF_NETLINK;
-		imi->local.nl_pid = NLPORT;
-		imi->local.nl_groups = 0;
+		local.nl_family = AF_NETLINK;
+		local.nl_pid = NLPORT;
+		local.nl_groups = 0;
 
-		ret = bind(imi->sk, (const struct sockaddr *) &(imi->local),
-							sizeof(imi->local));
+		ret = bind(imi->sk, (const struct sockaddr *) &local,
+						sizeof(local));
 		if (ret < 0) {
 			libipcon_err("Failed to bind netlink socket.\n");
 			break;
@@ -46,16 +47,18 @@ IPCON_HANDLER ipcon_create_handler(void)
 					NLM_F_ACK | NLM_F_REQUEST,
 					IPCON_GET_SELFID,
 					NULL,
-					1);
+					0);
 
 		if (!ret) {
 			struct nlmsghdr *nlh = NULL;
 			struct sockaddr_nl from;
+			struct ipcon_msghdr *im = NULL;
 
 			/* FIXME: Add timeout here */
 			while (1) {
-				ret = rcv_msg(imi, &from, &nlh, sizeof(__u32));
-				if (ret)
+				ret = rcv_msg(imi, &from, &nlh,
+					max_size_nlerr(IPCONMSG_SPACE(0)));
+				if (ret < 0)
 					break;
 
 				if (nlh->nlmsg_type == NLMSG_ERROR) {
@@ -67,11 +70,20 @@ IPCON_HANDLER ipcon_create_handler(void)
 					break;
 				}
 
-				imi->local.nl_pid = *(__u32 *)NLMSG_DATA(nlh);
+				if (nlh->nlmsg_type == IPCON_GET_SELFID) {
+					im = NLMSG_DATA(nlh);
+					imi->port = im->selfid;
+					free(nlh);
+					continue;
+				}
+
+				libipcon_err("Unexpected nlmsg.(type = %d)\n",
+						nlh->nlmsg_type);
+				free(nlh);
 			}
 		}
 
-		libipcon_dbg("Port: %lu\n", (unsigned long)imi->local.nl_pid);
+		libipcon_dbg("Port: %lu\n", (unsigned long)imi->port);
 
 	} while (0);
 
@@ -85,75 +97,70 @@ IPCON_HANDLER ipcon_create_handler(void)
 	return (IPCON_HANDLER) imi;
 }
 
-void ipcon_free_handler(IPCON_HANDLER handler)
+int ipcon_free_handler(IPCON_HANDLER handler)
 {
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_msghdr *im = NULL;
+	int ret = 0;
 
 	if (!imi)
 		return;
 
-	if (imi->type == IPCON_TYPE_SERVICE) {
-		int ret = 0;
+	do {
+		if (imi->type == IPCON_TYPE_SERVICE)
+			ret = ipcon_unregister_service(handler);
 
+		if (!ret)
+			free(imi);
+	} while (0);
 
-		ret = send_unicast_msg(imi,
-					0,
-					NLM_F_ACK | NLM_F_REQUEST,
-					IPCON_SRV_UNREG,
-					imi->srv,
-					sizeof(*(imi->srv)));
-
-		if (!ret) {
-			ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
-			libipcon_dbg("Unregister %s by free handler %s.\n",
-					imi->srv->name,
-					ret ? "failed":"success");
-		}
-
-		free(imi->srv);
-	}
-
-	close(imi->sk);
-	free(imi);
+	return ret;
 }
 
 int ipcon_register_service(IPCON_HANDLER handler, char *name,
-				unsigned int *group)
+				unsigned int group)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	struct ipcon_point *srv = NULL;
+	struct ipcon_srv *srv = NULL;
+	struct ipcon_msghdr *im = NULL;
 
-	if (!imi || !name || !strlen(name))
+	if (!imi || !name || !strlen(name) ||
+		(strlen(name) > IPCON_MAX_SRV_NAME_LEN - 1))
 		return -EINVAL;
 
-	srv = (struct ipcon_point *) malloc(sizeof(*srv));
-	if (!srv)
+	if ((group > IPCON_AUOTO_GROUP) || (group == IPCON_MC_GROUP_KERN))
+		return -EINVAL;
+
+
+	im = alloc_ipconmsg(sizeof(struct ipcon_srv));
+	if (!im)
 		return -ENOMEM;
 
+	srv = IPCONMSG_DATA(im);
 	strcpy(srv->name, name);
-	if (group)
-		srv->group = *group;
-	else
-		srv->group = 0;
 
-	libipcon_dbg("%s-%d Group:%u\n", __func__, __LINE__, srv->group);
+	srv->group = group;
+
 	ret = send_unicast_msg(imi,
 				0,
 				NLM_F_ACK | NLM_F_REQUEST,
 				IPCON_SRV_REG,
-				srv,
-				sizeof(*srv));
+				im,
+				im->ipconmsg_len);
+
+	free(im);
 
 	if (!ret) {
 		struct nlmsgerr *nlerr;
 		struct nlmsghdr *nlh = NULL;
 		struct sockaddr_nl from;
-		struct ipcon_kern_rsp *ikr;
 
 		do {
 			/* FIXME: Add caching function */
-			ret = rcv_msg(imi, &from, &nlh, MAX_PAYLOAD_SIZE);
+			ret = rcv_msg(imi, &from, &nlh,
+				max_size_nlerr(IPCONMSG_SPACE(0)));
+
 			if (ret)
 				break;
 
@@ -170,18 +177,18 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 				break;
 			}
 
-			ikr = NLMSG_DATA(nlh);
-			*group = srv->group = ikr->group;
-
+			im = NLMSG_DATA(nlh);
+			imi->srv.group = im->group;
+			strcpy(imi->srv.name, name);
 			imi->type = IPCON_TYPE_SERVICE;
-			imi->srv = srv;
 			free(nlh);
 		} while (1);
 	}
 
-	libipcon_dbg("Register %s (group: %d) %s.\n",
+	libipcon_dbg("Register %s@%lu (group: %u) %s.\n",
 			name,
-			srv->group,
+			(unsigned long)imi->port,
+			imi->srv.group,
 			ret ? "failed":"success");
 
 	return ret;
@@ -192,33 +199,52 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	int ret = 0;
 
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_msghdr *im = NULL;
+	struct ipcon_srv *srv = NULL;
 
-	if (!imi)
-		return -EINVAL;
-
-	if ((imi->type != IPCON_TYPE_SERVICE) || (!imi->srv))
-		return -EINVAL;
-
-	ret = send_unicast_msg(imi,
-			0,
-			NLM_F_ACK | NLM_F_REQUEST,
-			IPCON_SRV_UNREG,
-			imi->srv,
-			sizeof(*(imi->srv)));
-	if (!ret) {
-		ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
-
-		libipcon_dbg("Unregister %s %s.\n",
-					imi->srv->name,
-					ret ? "failed":"success");
-		if (!ret) {
-			free(imi->srv);
-			imi->srv = NULL;
-			imi->type = IPCON_TYPE_USER;
+	do {
+		if (!imi) {
+			ret = -EINVAL;
+			break;
 		}
-	} else {
-		libipcon_err("Unregister failed(%d).\n", ret);
-	}
+
+		if (imi->type != IPCON_TYPE_SERVICE) {
+			ret = -EINVAL;
+			break;
+		}
+
+		im = alloc_ipconmsg(sizeof(struct ipcon_srv));
+		if (!im) {
+			ret = -ENOMEM;
+			break;
+		}
+
+		srv = IPCONMSG_DATA(im);
+		memcpy(srv, &imi->srv, sizeof(struct ipcon_srv));
+
+		ret = send_unicast_msg(imi,
+				0,
+				NLM_F_ACK | NLM_F_REQUEST,
+				IPCON_SRV_UNREG,
+				im,
+				im->ipconmsg_len);
+		if (ret < 0)
+			break;
+
+		ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
+		if (!ret) {
+
+			libipcon_dbg("Unregister %s success.\n",
+					imi->srv.name);
+
+			memset(&imi->srv, 0, sizeof(struct ipcon_srv));
+			imi->type = IPCON_TYPE_USER;
+		} else {
+			libipcon_dbg("Unregister %s failed (%d).\n",
+					imi->srv.name, ret);
+		}
+
+	} while (0);
 
 	return ret;
 }
@@ -228,48 +254,67 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_msghdr *im = NULL;
+	char *srv_name = NULL;
 
-	if (!imi || !name || !srv_port)
-		return -EINVAL;
+	do {
+		if (!imi || !srv_port || !group) {
+			ret = -EINVAL;
+			break;
+		}
 
-	ret = send_unicast_msg(imi,
-			0,
-			NLM_F_ACK | NLM_F_REQUEST,
-			IPCON_SRV_RESLOVE,
-			name,
-			strlen(name) + 1);
+		if (!name || !strlen(name) ||
+			(strlen(name) > IPCON_MAX_SRV_NAME_LEN - 1)) {
+			ret = -EINVAL;
+			break;
+		}
 
-	if (!ret) {
-		struct nlmsgerr *nlerr;
-		struct nlmsghdr *nlh = NULL;
-		struct sockaddr_nl from;
-		struct ipcon_kern_rsp *ikr;
+		im = alloc_ipconmsg(strlen(name) + 1);
+		if (!im) {
+			ret = -ENOMEM;
+			break;
+		}
+
+		srv_name = IPCONMSG_DATA(im);
+		strcpy(srv_name, name);
+		ret = send_unicast_msg(imi,
+				0,
+				NLM_F_ACK | NLM_F_REQUEST,
+				IPCON_SRV_RESLOVE,
+				im,
+				im->ipconmsg_len);
+		free(im);
+		if (ret < 0)
+			break;
+
 
 		do {
-			/* FIXME: Add timeout here */
-			ret = rcv_msg(imi, &from, &nlh, MAX_PAYLOAD_SIZE);
-			if (ret)
+			struct nlmsghdr *nlh = NULL;
+			struct nlmsgerr *nlerr = NULL;
+			struct sockaddr_nl from;
+
+			memset(&from, 0, sizeof(from));
+			ret = rcv_msg(imi, &from, &nlh,
+					max_size_nlerr(IPCONMSG_SPACE(0)));
+			if (ret < 0)
 				break;
 
 			if (nlh->nlmsg_type == NLMSG_ERROR) {
 				nlerr = NLMSG_DATA(nlh);
-				if (nlerr->msg.nlmsg_type !=
-					IPCON_SRV_RESLOVE) {
-					free(nlh);
-					continue;
-				}
 
 				ret = nlerr->error;
 				free(nlh);
 				break;
 			}
 
-			ikr = NLMSG_DATA(nlh);
-			*group = ikr->group;
-			*srv_port = ikr->port;
+			im = NLMSG_DATA(nlh);
+			*group = im->srv.group;
+			*srv_port = im->srv.port;
 			free(nlh);
+
 		} while (1);
-	}
+
+	} while (0);
 
 	return ret;
 }
@@ -280,6 +325,7 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 	int ret = 0;
 	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_msghdr *im = NULL;
 	struct sockaddr_nl from;
 
 	if (!imi)
@@ -288,60 +334,43 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 	memset(&from, 0, sizeof(from));
 
 	do {
+		char *tmp_buf = NULL;
+
 		ret = rcv_msg(imi, &from, &nlh, max_msg_size);
 		if (!ret) {
 			if (nlh->nlmsg_type == NLMSG_ERROR) {
-				struct nlmsgerr *nlerr;
-
-				nlerr = NLMSG_DATA(nlh);
-				ret = nlerr->error;
 				free(nlh);
+				libipcon_err("Unexpected nlmsg_err msg.\n");
+				continue;
 
-				break;
+			}
 
-			} else  if ((nlh->nlmsg_type == IPCON_MULICAST_EVENT) &&
-					(get_group(from.nl_groups) !=
-						IPCON_MC_GROUP_KERN)) {
+			im = NLMSG_DATA(nlh);
+			if (im->size > 0) {
+				tmp_buf = (char *)
+					malloc((size_t)im->size);
 
-				struct ipcon_msghdr *im = NLMSG_DATA(nlh);
-				char *tmp_buf = NULL;
-
-				tmp_buf = (char *)malloc((size_t)im->size);
 				if (!tmp_buf) {
 					ret = -ENOMEM;
+					free(nlh);
 					break;
 				}
 
-				memcpy(tmp_buf, IPCON_MSG_DATA(im),
+				memcpy(tmp_buf, IPCONMSG_DATA(im),
 						(size_t)im->size);
-
-				*buf = tmp_buf;
-				*port = im->rport;
-				*group = get_group(from.nl_groups);
-				ret = (int)im->size;
-				free(nlh);
-
-				break;
-
-			} else {
-				char *tmp_buf = NULL;
-				__u32 data_size = 0;
-
-				data_size = (nlh->nlmsg_len - NLMSG_HDRLEN);
-				tmp_buf = (char *)malloc((size_t)data_size);
-				memcpy(tmp_buf, NLMSG_DATA(nlh),
-						(size_t)data_size);
-				*buf = tmp_buf;
-				*port = from.nl_pid;
-				*group = get_group(from.nl_groups);
-				ret = (int)data_size;
-				free(nlh);
-
-				break;
 			}
 
+			*buf = tmp_buf;
+			if (nlh->nlmsg_type == IPCON_MULICAST_EVENT)
+				*port = im->rport;
+			else
+				*port = from.nl_pid;
+			*group = get_group(from.nl_groups);
+			ret = (int)im->size;
+			break;
 		}
-	} while (0);
+
+	} while (1);
 
 	return ret;
 }
@@ -351,19 +380,24 @@ int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_msghdr *im = NULL;
 
-	if (!imi || !port)
+	if (!imi || !port || !buf || !size)
 		return -EINVAL;
 
-	ret = send_unicast_msg(imi,
+	im = alloc_ipconmsg(size);
+	if (!im)
+		return -ENOMEM;
+
+	memcpy(IPCONMSG_DATA(im), buf, size);
+
+	return send_unicast_msg(imi,
 			port,
 			NLM_F_REQUEST,
 			IPCON_USER,
-			buf,
-			size);
+			im,
+			im->ipconmsg_len);
 
-
-	return ret;
 }
 
 int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
@@ -372,25 +406,26 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	struct ipcon_msghdr *im = NULL;
 
-	if (!imi || !buf || !size || !imi->srv || !imi->srv->group)
+	if (!imi || !buf || !size ||
+		(imi->type != IPCON_TYPE_SERVICE) || !imi->srv.group)
 		return -EINVAL;
 
-	im = (struct ipcon_msghdr *) malloc(IPCON_MSG_SPACE(size));
+	im = alloc_ipconmsg(size);
 	if (!im)
 		return -ENOMEM;
 
-	im->rport = imi->local.nl_pid;
+	im->rport = imi->port;
 	im->size = (__u32)size;
-	im->total_size = IPCON_MSG_SPACE(size);
+	im->ipconmsg_len = IPCONMSG_SPACE(size);
 
-	memcpy(IPCON_MSG_DATA(im), buf, size);
+	memcpy(IPCONMSG_DATA(im), buf, size);
 
 	ret = send_unicast_msg(imi,
 			0,
 			NLM_F_REQUEST | NLM_F_ACK,
 			IPCON_MULICAST_EVENT,
 			im,
-			im->total_size);
+			im->ipconmsg_len);
 
 	free(im);
 
@@ -446,4 +481,28 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 
 	return ret;
 
+}
+
+struct ipcon_info *ipcon_get_info(IPCON_HANDLER handler)
+{
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_info *li = NULL;
+
+	do {
+		if (!imi)
+			break;
+
+		li = (struct ipcon_info *) malloc(sizeof(struct ipcon_info));
+		if (!li)
+			break;
+
+		li->port = imi->port;
+		if (imi->type == IPCON_TYPE_SERVICE)
+			li->srv = &imi->srv;
+		else
+			li->srv = NULL;
+
+	} while (0);
+
+	return li;
 }

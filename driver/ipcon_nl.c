@@ -44,24 +44,34 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 
 	if (n) {
 		if (n->protocol == NETLINK_IPCON) {
-			struct ipcon_kern_event ike;
+			struct ipcon_kern_event *ike = NULL;
+			struct ipcon_msghdr *im = NULL;
 
 			if (state == NETLINK_URELEASE) {
-				ike.event = IPCON_SRV_REMOVE;
-				ike.port = n->portid;
+				im = alloc_ipconmsg(
+						sizeof(struct ipcon_kern_event),
+						GFP_ATOMIC);
 
-				ipcon_multicast(0,
-					IPCON_MC_GROUP_KERN,
-					&ike,
-					sizeof(ike),
-					GFP_KERNEL);
+				if (im) {
+					ike = IPCONMSG_DATA(im);
+					ike->event = IPCON_SRV_REMOVE;
+					ike->port = n->portid;
+
+					ipcon_multicast(0,
+						IPCON_MC_GROUP_KERN,
+						im,
+						im->ipconmsg_len,
+						GFP_KERNEL);
+
+					kfree(im);
+
+					ipcon_info(
+						"notify: port: %d stat: %lx\n",
+						n->portid,
+						state);
+				}
 			}
 
-			ipcon_info(
-				"notify: protocol: %d  portid: %d state: %lx\n",
-				n->protocol,
-				n->portid,
-				state);
 		}
 	}
 
@@ -204,154 +214,188 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		error = -EINVAL;
 	} else {
 		struct ipcon_tree_node *nd = NULL;
-		struct ipcon_point *ip = NULL;
+		struct ipcon_srv *ip = NULL;
 		char *srv_name = NULL;
-		u32 selfid = 0;
-		struct ipcon_kern_rsp ikr;
 		struct ipcon_msghdr *im = NULL;
 
 		switch (type) {
 		case IPCON_GET_SELFID:
-			selfid = NETLINK_CB(skb).portid;
-			error = ipcon_unicast(selfid,
+			im = alloc_ipconmsg(0, GFP_ATOMIC);
+			im->selfid = NETLINK_CB(skb).portid;
+			ipcon_dbg("IPCON_GET_SELFID: id=%lu\n",
+					(unsigned long)im->selfid);
+			error = ipcon_unicast(im->selfid,
 						type,
 						nlh->nlmsg_seq++,
-						&selfid,
-						sizeof(selfid));
-			ipcon_dbg("IPCON_POINT_SELFID: SELFID= %lu.\n",
-					(unsigned long)selfid);
+						im,
+						im->ipconmsg_len);
+			kfree(im);
 			break;
+
 		case IPCON_SRV_REG:
-			ip = NLMSG_DATA(nlh);
-			if (!ip ||
-				!strlen(ip->name) ||
+			if (!NLMSG_DATA(nlh)) {
+				error = -EINVAL;
+				break;
+			}
+
+			ip = IPCONMSG_DATA((struct ipcon_msghdr *)
+						NLMSG_DATA(nlh));
+
+			if (!ip || !strlen(ip->name) ||
 				(ip->group > IPCON_AUOTO_GROUP) ||
 				(ip->group == IPCON_MC_GROUP_KERN)) {
 
 				error = -EINVAL;
-
-			} else {
-				memset(&ikr, 0, sizeof(ikr));
-				ikr.group = ip->group;
-
-				switch (ikr.group) {
-				case 0:
-					/* No group required */
-					break;
-				case IPCON_AUOTO_GROUP:
-					/*
-					 * Auto group id
-					 * The lowest position returned from
-					 * ffs() is 1
-					 */
-					ikr.group = ffs(~group_bitflag);
-					set_bit(ikr.group, &group_bitflag);
-					break;
-				default: /* required group id */
-					if (group_inuse(ikr.group))
-						error = -EEXIST;
-					else
-						reg_group(ikr.group);
-
-					break;
-				}
-
-				if (error)
-					break;
-
-				nd = cp_alloc_node(ip, nlh->nlmsg_pid);
-				if (!nd) {
-					error = -ENOMEM;
-				} else {
-					nd->group = ikr.group;
-					error = cp_insert(&cp_tree_root, nd);
-				}
-
-				if (error) {
-					if (nd)
-						cp_free_node(nd);
-
-					if (ikr.group)
-						unreg_group(ikr.group);
-
-					ipcon_err("Service register fail.(%d)\n",
-							error);
-				} else {
-					ipcon_info("%s@%d(%d) registerred.\n",
-							nd->point.name,
-							nd->port,
-							nd->point.group);
-
-					error = ipcon_unicast(
-							NETLINK_CB(skb).portid,
-							type,
-							nlh->nlmsg_seq++,
-							(void *)&ikr,
-							sizeof(ikr));
-
-					/* if success do not send nlmsgerr */
-					if (error && ikr.group)
-						unreg_group(ikr.group);
-				}
+				break;
 			}
-			break;
 
-		case IPCON_SRV_UNREG:
-			ip = NLMSG_DATA(nlh);
-			if (!ip || !strlen(ip->name)) {
-				error = -EINVAL;
-			} else {
-				nd = cp_lookup(cp_tree_root, ip->name);
-				if (!nd)
-					error = -EINVAL;
+			ipcon_dbg("IPCON_SRV_REG: name:%s group=%u\n",
+					ip->name, ip->group);
+
+			im = alloc_ipconmsg(0, GFP_ATOMIC);
+			if (!im) {
+				error = -ENOMEM;
+				break;
+			}
+
+			switch (ip->group) {
+			case 0:
+				/* No group required */
+				break;
+			case IPCON_AUOTO_GROUP:
+				/*
+				 * Auto group id
+				 * The lowest position returned from ffs() is 1
+				 */
+				ip->group = ffs(~group_bitflag);
+				set_bit(ip->group, &group_bitflag);
+				break;
+			default: /* required group id */
+				if (group_inuse(ip->group))
+					error = -EEXIST;
 				else
-					error = cp_detach_node(&cp_tree_root,
-								nd);
+					reg_group(ip->group);
+
+				break;
 			}
 
 			if (error) {
-				ipcon_err("%s@%d unregistered failed (%d).\n",
-						ip->name,
-						nlh->nlmsg_pid,
-						error);
-			} else {
-				if (nd->point.group)
-					clear_bit(ip->group, &group_bitflag);
-
-				cp_free_node(nd);
-				ipcon_info("%s@%d unregistered.\n",
-						ip->name,
-						(int)nlh->nlmsg_pid);
+				kfree(im);
+				break;
 			}
 
+			nd = cp_alloc_node(ip, nlh->nlmsg_pid);
+			if (!nd) {
+				error = -ENOMEM;
+				kfree(im);
+				break;
+			}
+
+			im->group = nd->srv.group;
+			error = cp_insert(&cp_tree_root, nd);
+			if (error) {
+				cp_free_node(nd);
+
+				if (im->group)
+					unreg_group(im->group);
+
+				kfree(im);
+				break;
+			}
+
+			ipcon_info("SRVREG: port=%lu, name=%s group=%u\n",
+					(unsigned long)nd->port,
+					nd->srv.name,
+					nd->srv.group);
+
+			error = ipcon_unicast(
+					NETLINK_CB(skb).portid,
+					type,
+					nlh->nlmsg_seq++,
+					im,
+					im->ipconmsg_len);
+
+			if (error) {
+				cp_detach_node(&cp_tree_root, nd);
+				cp_free_node(nd);
+
+				if (im->group)
+					unreg_group(im->group);
+			}
+
+			kfree(im);
 			break;
+
+		case IPCON_SRV_UNREG:
+			im = NLMSG_DATA(nlh);
+			if (!im) {
+				error = -EINVAL;
+				break;
+			}
+
+			ip = IPCONMSG_DATA(im);
+			if (!ip || !strlen(ip->name)) {
+				error = -EINVAL;
+				break;
+			}
+
+			nd = cp_lookup(cp_tree_root, ip->name);
+			if (!nd)
+				error = -EINVAL;
+			else
+				error = cp_detach_node(&cp_tree_root, nd);
+
+			if (error)
+				break;
+
+			if (nd->srv.group)
+				clear_bit(ip->group, &group_bitflag);
+
+			cp_free_node(nd);
+			break;
+
 		case IPCON_SRV_RESLOVE:
-			srv_name = NLMSG_DATA(nlh);
+			srv_name = IPCONMSG_DATA((struct ipcon_msghdr *)
+					NLMSG_DATA(nlh));
 			if (!srv_name || !strlen(srv_name)) {
 				error = -EINVAL;
-			} else {
-				memset(&ikr, 0, sizeof(ikr));
-				nd = cp_lookup(cp_tree_root, srv_name);
-				if (!nd) {
-					error = -EINVAL;
-					break;
-				}
-
-				ikr.group = nd->group;
-				ikr.port = nd->port;
-				error = ipcon_unicast(
-						nlh->nlmsg_pid,
-						type,
-						nlh->nlmsg_seq++,
-						&ikr,
-						sizeof(ikr));
+				break;
 			}
+
+			nd = cp_lookup(cp_tree_root, srv_name);
+			if (!nd) {
+				error = -EINVAL;
+				break;
+			}
+
+			im = alloc_ipconmsg(0, GFP_ATOMIC);
+			if (!im) {
+				error = -ENOMEM;
+				break;
+			}
+
+			im->srv.group = nd->srv.group;
+			im->srv.port = nd->port;
+			error = ipcon_unicast(
+					nlh->nlmsg_pid,
+					type,
+					nlh->nlmsg_seq++,
+					im,
+					im->ipconmsg_len);
+
+			kfree(im);
 			break;
+
 		case IPCON_SRV_DUMP:
 			cp_print_tree(cp_tree_root);
 			break;
+
 		case IPCON_MULICAST_EVENT:
 			im = NLMSG_DATA(nlh);
+			if (!im) {
+				error = -EINVAL;
+				break;
+			}
 
 			nd = cp_lookup_by_port(cp_tree_root, nlh->nlmsg_pid);
 			if (!nd) {
@@ -359,19 +403,20 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
-			if (!nd->group || nd->group > 32) {
+			if ((nd->srv.group == IPCON_MC_GROUP_KERN) ||
+					(nd->srv.group > 32)) {
 				error = -EINVAL;
 				break;
 			}
 
 			error = ipcon_multicast(
 					nlh->nlmsg_pid,
-					nd->group,
+					nd->srv.group,
 					im,
-					im->total_size,
+					im->ipconmsg_len,
 					GFP_ATOMIC);
-
 			break;
+
 		default:
 			error = -EINVAL;
 			ipcon_err("Unknow msg type: %x\n", type);

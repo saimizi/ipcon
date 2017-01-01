@@ -29,14 +29,13 @@ enum ipcon_type {
 
 struct ipcon_mng_info {
 	int sk;
+	__u32 port;
 	enum ipcon_type type;
-	struct ipcon_point *srv;
-	struct sockaddr_nl local;
+	struct ipcon_srv srv;
 };
 
 #define handler_to_info(a)	((struct ipcon_mng_info *) a)
 #define info_to_handler(a)	((IPCON_HANDLER) a)
-#define MAX_PAYLOAD_SIZE	(4 * 1024)
 
 static unsigned int get_group(__u32 grp_mask)
 {

@@ -24,27 +24,36 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	IPCON_HANDLER handler;
 	unsigned int srv_group = IPCON_AUOTO_GROUP;
+	struct ipcon_info *ii = NULL;
 
 	do {
 		/* Create server handler */
 		handler = ipcon_create_handler();
 		if (!handler) {
 			ipcon_err("Failed to create libipcon handler.\n");
-			break;
+			return ret;
 		}
 
 		/* Register service */
 		ipcon_dbg("Register %s.\n", argv[0]);
-		ret = ipcon_register_service(handler, argv[0], &srv_group);
+		ret = ipcon_register_service(handler, argv[0], srv_group);
 		if (ret) {
 			ipcon_err("Failed to register %s: %s (%d)\n",
 					argv[0], strerror(-ret), ret);
 			ipcon_free_handler(handler);
+			return ret;
+		}
+
+		ii = ipcon_get_info(handler);
+		if (!ii) {
+			ipcon_info("Get ipcon info failed.\n");
 			break;
 		}
 
-			ipcon_info("%s registered with group %d.\n",
-					argv[0], srv_group);
+		ipcon_info("%s@%lu (group=%u) registered.\n",
+				ii->srv->name,
+				(unsigned long)ii->port,
+				ii->srv->group);
 
 		while (1) {
 			__u32 src_port = 0;
@@ -60,7 +69,6 @@ int main(int argc, char *argv[])
 
 			if (len < 0) {
 				ipcon_err("Receive msg from failed\n");
-				ipcon_free_handler(handler);
 				break;
 			}
 
@@ -77,7 +85,7 @@ int main(int argc, char *argv[])
 					strlen(buf) + 1);
 
 			ipcon_info("Forward msg to group %u %s (%d)\n",
-					srv_group,
+					ii->srv->group,
 					(ret < 0) ?  "failed" : "success",
 					ret);
 			free(buf);
@@ -90,6 +98,8 @@ int main(int argc, char *argv[])
 	/* Unregister service */
 	ret = ipcon_unregister_service(handler);
 	ipcon_dbg("Unregister %s %s.\n", argv[0], ret ? "failed":"success");
+
+	free(ii);
 
 	/* Free handler */
 	ipcon_free_handler(handler);

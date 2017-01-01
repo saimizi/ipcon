@@ -11,33 +11,34 @@
 
 
 struct ipcon_tree_node {
-	struct ipcon_point point;
-	u32 port;
-	unsigned int group;
+	__u32 port;
+	struct ipcon_srv srv;
 	struct ipcon_tree_node *parent;
 	struct ipcon_tree_node *left;
 	struct ipcon_tree_node *right;
 };
 
-static inline int cp_valid_node(struct ipcon_tree_node *node)
+static inline int cp_valid_node(struct ipcon_tree_node *nd)
 {
-	if (!node)
+	if (!nd)
 		return 0;
 
-	if (node->port <= 0)
+	if (!nd->port)
 		return 0;
 
-	if (node->group > IPCON_MAX_GROUP)
+	if ((nd->srv.group > IPCON_MAX_GROUP) ||
+		(nd->srv.group <= IPCON_MC_GROUP_KERN))
 		return 0;
 
-	if (strlen(node->point.name) == 0)
+	if (strlen(nd->srv.name) == 0 ||
+		(strlen(nd->srv.name) > IPCON_MAX_SRV_NAME_LEN - 1))
 		return 0;
 
 	return 1;
 }
 
 int cp_comp(struct ipcon_tree_node *n1, struct ipcon_tree_node *n2);
-struct ipcon_tree_node *cp_alloc_node(struct ipcon_point *p, int port);
+struct ipcon_tree_node *cp_alloc_node(struct ipcon_srv *p, int port);
 void cp_free_node(struct ipcon_tree_node *nd);
 int cp_detach_node(struct ipcon_tree_node **root, struct ipcon_tree_node *nd);
 struct ipcon_tree_node *cp_lookup(struct ipcon_tree_node *root, char *name);

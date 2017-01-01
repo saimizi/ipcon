@@ -1,4 +1,4 @@
-bin_PROGRAMS = ipcon_reg ipcon_dump ipcon_multicast ipcon_server ipcon_cmd
+bin_PROGRAMS = ipcon_dump ipcon_multicast ipcon_server ipcon_cmd
 
 common_cflags = -g -O2 -Wall \
 		-I ${top_builddir}/driver/ \
@@ -6,11 +6,6 @@ common_cflags = -g -O2 -Wall \
 		$(LIBNL_GENL_CFLAGS)
 
 common_ldflags =$(LIBNL_GENL_LIBS)
-
-ipcon_reg_SOURCES = ipcon_reg.c
-ipcon_reg_CFLAGS =$(common_cflags)
-ipcon_reg_LDFLAGS= -L${top_builddir}/lib/.libs
-ipcon_reg_LDADD = -lipcon $(common_ldflags)
 
 ipcon_multicast_SOURCES = ipcon_multicast.c
 ipcon_multicast_CFLAGS =$(common_cflags)
