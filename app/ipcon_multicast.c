@@ -19,23 +19,6 @@
 #define ipcon_err(fmt, ...) \
 	printf("[ipcon_mc] %s-%d "fmt, __func__, __LINE__, ##__VA_ARGS__)
 
-int multicast_cb(__u32 port, unsigned int group, void *para)
-{
-	ipcon_info("Multicast msg: port= %lu, group=%u\n",
-			(unsigned long)port, group);
-
-	if (group == IPCON_MC_GROUP_KERN) {
-		struct ipcon_kern_event *ike = para;
-
-		ipcon_info("Srv %d is %s\n",
-			(int) ike->port,
-			(ike->event == IPCON_SRV_REMOVE) ?
-					"Removed" : "Added");
-	}
-
-	return 0;
-}
-
 int main(int argc, char *argv[])
 {
 	int ret = 0;
@@ -111,7 +94,23 @@ int main(int argc, char *argv[])
 				continue;
 			}
 
-			multicast_cb(src_port, group, buf);
+			if (group == IPCON_MC_GROUP_KERN) {
+				struct ipcon_kern_event *ike =
+					(struct ipcon_kern_event *)buf;
+
+				ipcon_info("Srv %d is %s\n",
+					(int) ike->port,
+					(ike->event == IPCON_SRV_REMOVE) ?
+							"Removed" : "Added");
+
+				if (ike->port == srv_port) {
+					ipcon_info("Quit...\n");
+					free(buf);
+					break;
+
+				}
+			}
+
 			free(buf);
 		}
 

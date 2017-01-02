@@ -134,8 +134,9 @@ int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt)
 		ret = rcv_msg(imi, &from, &nlh, sizeof(*nlerr));
 		if (!ret) {
 			if (nlh->nlmsg_type != NLMSG_ERROR) {
-				free(nlh);
-				nlh = NULL;
+				if (queue_msg(imi, nlh, &from))
+					libipcon_warn(
+						"Received msg maybe lost.\n");
 				continue;
 			}
 
@@ -153,4 +154,61 @@ int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt)
 	} while (1);
 
 	return ret;
+}
+
+int queue_msg(struct ipcon_mng_info *imi, struct nlmsghdr *nlh,
+		struct sockaddr_nl *from)
+{
+	struct ipcon_msg_link *iml = NULL;
+
+	libipcon_dbg("%s enter.", __func__);
+
+	if (!imi || !nlh || !from)
+		return -EINVAL;
+
+	if (imi->msg_queue) {
+		iml = imi->msg_queue;
+
+		while (iml->next)
+			iml = iml->next;
+
+		iml->next = (struct ipcon_msg_link *)
+			malloc(sizeof(struct ipcon_msg_link));
+
+		if (!iml->next)
+			return -ENOMEM;
+
+		memset(iml->next, 0, sizeof(struct ipcon_msg_link));
+		iml->next->nlh = nlh;
+		memcpy(&iml->next->from, from, sizeof(struct sockaddr_nl));
+	} else {
+		imi->msg_queue = (struct ipcon_msg_link *)
+			malloc(sizeof(struct ipcon_msg_link));
+
+		if (!imi->msg_queue)
+			return -ENOMEM;
+
+		memset(imi->msg_queue, 0, sizeof(struct ipcon_msg_link));
+		imi->msg_queue->nlh = nlh;
+		memcpy(&imi->msg_queue->from, from, sizeof(struct sockaddr_nl));
+	}
+
+	return 0;
+}
+
+struct ipcon_msg_link *dequeue_msg(struct ipcon_mng_info *imi)
+{
+	struct ipcon_msg_link *iml = NULL;
+
+	libipcon_dbg("%s enter.", __func__);
+
+	if (!imi)
+		return NULL;
+
+	if (imi->msg_queue) {
+		iml = imi->msg_queue;
+		imi->msg_queue = iml->next;
+		iml->next = NULL;
+	}
+	return iml;
 }

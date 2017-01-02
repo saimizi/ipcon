@@ -20,6 +20,7 @@ IPCON_HANDLER ipcon_create_handler(void)
 		if (!imi)
 			break;
 
+		memset(imi, 0, sizeof(*imi));
 		imi->sk = socket(AF_NETLINK, SOCK_RAW, NETLINK_IPCON);
 		if (imi->sk < 0) {
 			libipcon_err("Failed to open netlink socket.\n");
@@ -29,7 +30,6 @@ IPCON_HANDLER ipcon_create_handler(void)
 		}
 
 		imi->type = IPCON_TYPE_USER;
-		memset(&imi->srv, 0, sizeof(struct ipcon_srv));
 
 		local.nl_family = AF_NETLINK;
 		local.nl_pid = NLPORT;
@@ -77,6 +77,10 @@ IPCON_HANDLER ipcon_create_handler(void)
 					continue;
 				}
 
+				/*
+				 * Do not queue msg, there is impossible
+				 * to receive a meaningful msg here
+				 */
 				libipcon_err("Unexpected nlmsg.(type = %d)\n",
 						nlh->nlmsg_type);
 				free(nlh);
@@ -168,6 +172,9 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 				nlerr = NLMSG_DATA(nlh);
 				if (nlerr->msg.nlmsg_type !=
 					IPCON_SRV_REG) {
+					libipcon_err(
+						"Unexpected msg.(type = %d)\n",
+						nlh->nlmsg_type);
 					free(nlh);
 					continue;
 				}
@@ -177,11 +184,19 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 				break;
 			}
 
-			im = NLMSG_DATA(nlh);
-			imi->srv.group = im->group;
-			strcpy(imi->srv.name, name);
-			imi->type = IPCON_TYPE_SERVICE;
-			free(nlh);
+			if (nlh->nlmsg_type == IPCON_SRV_REG) {
+				im = NLMSG_DATA(nlh);
+				imi->srv.group = im->group;
+				strcpy(imi->srv.name, name);
+				imi->type = IPCON_TYPE_SERVICE;
+				free(nlh);
+				continue;
+			}
+
+			if (queue_msg(imi, nlh, &from))
+				libipcon_warn("Received msg maybe lost.\n");
+
+
 		} while (1);
 	}
 
@@ -307,10 +322,16 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 				break;
 			}
 
-			im = NLMSG_DATA(nlh);
-			*group = im->srv.group;
-			*srv_port = im->srv.port;
-			free(nlh);
+			if (nlh->nlmsg_type == IPCON_SRV_RESLOVE) {
+				im = NLMSG_DATA(nlh);
+				*group = im->srv.group;
+				*srv_port = im->srv.port;
+				free(nlh);
+				continue;
+			}
+
+			if (queue_msg(imi, nlh, &from))
+				libipcon_warn("Received msg maybe lost.\n");
 
 		} while (1);
 
@@ -320,23 +341,40 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 }
 
 int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
-		unsigned int *group, void **buf, __u32 max_msg_size)
+		unsigned int *group, void **buf, __u32 max_msg_size_hint)
 {
 	int ret = 0;
 	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	struct ipcon_msghdr *im = NULL;
-	struct sockaddr_nl from;
+	unsigned int t_group = 0;
+	unsigned int t_port = 0;
 
 	if (!imi)
 		return -EINVAL;
 
-	memset(&from, 0, sizeof(from));
-
 	do {
 		char *tmp_buf = NULL;
 
-		ret = rcv_msg(imi, &from, &nlh, max_msg_size);
+		if (imi->msg_queue) {
+			struct ipcon_msg_link *iml = NULL;
+
+			iml = dequeue_msg(imi);
+			nlh = iml->nlh;
+			t_group = get_group(iml->from.nl_groups);
+			t_port = iml->from.nl_pid;
+			iml->nlh = NULL;
+			free_ipcon_msg_link(iml);
+		} else {
+			struct sockaddr_nl from;
+
+			memset(&from, 0, sizeof(from));
+			ret = rcv_msg(imi, &from, &nlh, max_msg_size_hint);
+
+			t_group = get_group(from.nl_groups);
+			t_port = from.nl_pid;
+		}
+
 		if (!ret) {
 			if (nlh->nlmsg_type == NLMSG_ERROR) {
 				free(nlh);
@@ -364,11 +402,12 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 			if (nlh->nlmsg_type == IPCON_MULICAST_EVENT)
 				*port = im->rport;
 			else
-				*port = from.nl_pid;
-			*group = get_group(from.nl_groups);
+				*port = t_port;
+			*group = t_group;
 			ret = (int)im->size;
-			break;
 		}
+
+		break;
 
 	} while (1);
 
@@ -441,12 +480,15 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 				break;
 
 			if (nlh->nlmsg_type != NLMSG_ERROR) {
-				free(nlh);
+				if (queue_msg(imi, nlh, &from))
+					libipcon_warn("Received msg maybe lost.\n");
 				continue;
 			}
 
 			nlerr = NLMSG_DATA(nlh);
 			if (nlerr->msg.nlmsg_type != IPCON_MULICAST_EVENT) {
+				libipcon_err("Unexpected msg.(type = %d)\n",
+						nlh->nlmsg_type);
 				free(nlh);
 				continue;
 			}

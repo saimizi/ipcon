@@ -11,6 +11,8 @@
 	fprintf(stderr, "[libipcon] DEBUG: "fmt, ##__VA_ARGS__)
 #define libipcon_info(fmt, ...) \
 	fprintf(stderr, "[libipcon] INFO: "fmt, ##__VA_ARGS__)
+#define libipcon_warn(fmt, ...) \
+	fprintf(stderr, "[libipcon] WARN: "fmt, ##__VA_ARGS__)
 #define libipcon_err(fmt, ...) \
 	fprintf(stderr, "[libipcon] ERROR: "fmt, ##__VA_ARGS__)
 
@@ -27,12 +29,30 @@ enum ipcon_type {
 	MAX_IPCON_TYPE
 };
 
+struct ipcon_msg_link {
+	struct nlmsghdr *nlh;
+	struct sockaddr_nl from;
+	struct ipcon_msg_link *next;
+};
+
 struct ipcon_mng_info {
 	int sk;
 	__u32 port;
 	enum ipcon_type type;
 	struct ipcon_srv srv;
+	struct ipcon_msg_link *msg_queue;
 };
+
+static void free_ipcon_msg_link(struct ipcon_msg_link *iml)
+{
+	if (!iml)
+		return;
+
+	if (iml->nlh)
+		free(iml->nlh);
+
+	free(iml);
+}
 
 #define handler_to_info(a)	((struct ipcon_mng_info *) a)
 #define info_to_handler(a)	((IPCON_HANDLER) a)
@@ -54,4 +74,7 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 int rcv_msg(struct ipcon_mng_info *imi, struct sockaddr_nl *from,
 		struct nlmsghdr **nlh, __u32 max_msg_size);
 int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt);
+int queue_msg(struct ipcon_mng_info *imi, struct nlmsghdr *nlh,
+		struct sockaddr_nl *from);
+struct ipcon_msg_link *dequeue_msg(struct ipcon_mng_info *imi);
 #endif
