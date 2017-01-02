@@ -483,26 +483,16 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 
 }
 
-struct ipcon_info *ipcon_get_info(IPCON_HANDLER handler)
+__u32 ipcon_get_selfport(IPCON_HANDLER handler)
 {
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	struct ipcon_info *li = NULL;
 
-	do {
-		if (!imi)
-			break;
+	return imi->port;
+}
 
-		li = (struct ipcon_info *) malloc(sizeof(struct ipcon_info));
-		if (!li)
-			break;
+const struct ipcon_srv *ipcon_get_selfsrv(IPCON_HANDLER handler)
+{
+	struct ipcon_mng_info *imi = handler_to_info(handler);
 
-		li->port = imi->port;
-		if (imi->type == IPCON_TYPE_SERVICE)
-			li->srv = &imi->srv;
-		else
-			li->srv = NULL;
-
-	} while (0);
-
-	return li;
+	return (const struct ipcon_srv *) &imi->srv;
 }
