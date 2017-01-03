@@ -9,6 +9,8 @@
 #include "libipcon.h"
 #include "libipcon_internal.h"
 
+
+
 IPCON_HANDLER ipcon_create_handler(void)
 {
 	struct ipcon_mng_info *imi = NULL;
@@ -16,11 +18,18 @@ IPCON_HANDLER ipcon_create_handler(void)
 	int ret = 0;
 
 	do {
+		pthread_mutexattr_t mtxAttr;
+
 		imi = (struct ipcon_mng_info *) malloc(sizeof(*imi));
 		if (!imi)
 			break;
 
 		memset(imi, 0, sizeof(*imi));
+
+		pthread_mutexattr_init(&mtxAttr);
+		pthread_mutexattr_settype(&mtxAttr, PTHREAD_MUTEX_ERRORCHECK);
+		pthread_mutex_init(&imi->mutex, &mtxAttr);
+
 		imi->sk = socket(AF_NETLINK, SOCK_RAW, NETLINK_IPCON);
 		if (imi->sk < 0) {
 			libipcon_err("Failed to open netlink socket.\n");
@@ -110,13 +119,28 @@ int ipcon_free_handler(IPCON_HANDLER handler)
 	if (!imi)
 		return;
 
-	do {
-		if (imi->type == IPCON_TYPE_SERVICE)
-			ret = ipcon_unregister_service(handler);
+	pthread_mutex_lock(&imi->mutex);
 
-		if (!ret)
-			free(imi);
-	} while (0);
+	if (imi->type == IPCON_TYPE_SERVICE)
+		ret = ipcon_unregister_service_unlock(imi);
+
+	if (imi->msg_queue) {
+		libipcon_warn("Some received msgs thrown away.\n");
+
+		while (imi->msg_queue) {
+			struct ipcon_msg_link *iml = NULL;
+
+			iml = dequeue_msg(imi);
+			free_ipcon_msg_link(iml);
+		}
+
+	}
+
+	close(imi->sk);
+	pthread_mutex_unlock(&imi->mutex);
+	pthread_mutex_destroy(&imi->mutex);
+
+	free(imi);
 
 	return ret;
 }
@@ -143,9 +167,9 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 
 	srv = IPCONMSG_DATA(im);
 	strcpy(srv->name, name);
-
 	srv->group = group;
 
+	pthread_mutex_lock(&imi->mutex);
 	ret = send_unicast_msg(imi,
 				0,
 				NLM_F_ACK | NLM_F_REQUEST,
@@ -186,9 +210,11 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 
 			if (nlh->nlmsg_type == IPCON_SRV_REG) {
 				im = NLMSG_DATA(nlh);
+
 				imi->srv.group = im->group;
 				strcpy(imi->srv.name, name);
 				imi->type = IPCON_TYPE_SERVICE;
+
 				free(nlh);
 				continue;
 			}
@@ -196,9 +222,10 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 			if (queue_msg(imi, nlh, &from))
 				libipcon_warn("Received msg maybe lost.\n");
 
-
 		} while (1);
 	}
+
+	pthread_mutex_unlock(&imi->mutex);
 
 	libipcon_dbg("Register %s@%lu (group: %u) %s.\n",
 			name,
@@ -214,52 +241,14 @@ int ipcon_unregister_service(IPCON_HANDLER handler)
 	int ret = 0;
 
 	struct ipcon_mng_info *imi = handler_to_info(handler);
-	struct ipcon_msghdr *im = NULL;
-	struct ipcon_srv *srv = NULL;
 
-	do {
-		if (!imi) {
-			ret = -EINVAL;
-			break;
-		}
+	if (!imi)
+		return -EINVAL;
 
-		if (imi->type != IPCON_TYPE_SERVICE) {
-			ret = -EINVAL;
-			break;
-		}
+	pthread_mutex_lock(&imi->mutex);
+	ret = ipcon_unregister_service_unlock(imi);
+	pthread_mutex_unlock(&imi->mutex);
 
-		im = alloc_ipconmsg(sizeof(struct ipcon_srv));
-		if (!im) {
-			ret = -ENOMEM;
-			break;
-		}
-
-		srv = IPCONMSG_DATA(im);
-		memcpy(srv, &imi->srv, sizeof(struct ipcon_srv));
-
-		ret = send_unicast_msg(imi,
-				0,
-				NLM_F_ACK | NLM_F_REQUEST,
-				IPCON_SRV_UNREG,
-				im,
-				im->ipconmsg_len);
-		if (ret < 0)
-			break;
-
-		ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
-		if (!ret) {
-
-			libipcon_dbg("Unregister %s success.\n",
-					imi->srv.name);
-
-			memset(&imi->srv, 0, sizeof(struct ipcon_srv));
-			imi->type = IPCON_TYPE_USER;
-		} else {
-			libipcon_dbg("Unregister %s failed (%d).\n",
-					imi->srv.name, ret);
-		}
-
-	} while (0);
 
 	return ret;
 }
@@ -292,6 +281,9 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 
 		srv_name = IPCONMSG_DATA(im);
 		strcpy(srv_name, name);
+
+		pthread_mutex_lock(&imi->mutex);
+
 		ret = send_unicast_msg(imi,
 				0,
 				NLM_F_ACK | NLM_F_REQUEST,
@@ -335,6 +327,8 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 
 		} while (1);
 
+		pthread_mutex_unlock(&imi->mutex);
+
 	} while (0);
 
 	return ret;
@@ -356,6 +350,8 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 	do {
 		char *tmp_buf = NULL;
 
+		/* Check queued message */
+		pthread_mutex_lock(&imi->mutex);
 		if (imi->msg_queue) {
 			struct ipcon_msg_link *iml = NULL;
 
@@ -365,7 +361,11 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 			t_port = iml->from.nl_pid;
 			iml->nlh = NULL;
 			free_ipcon_msg_link(iml);
-		} else {
+		}
+		pthread_mutex_unlock(&imi->mutex);
+
+		/* If no queued mesage, do rcv_msg() */
+		if (!nlh) {
 			struct sockaddr_nl from;
 
 			memset(&from, 0, sizeof(from));
@@ -459,6 +459,7 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 
 	memcpy(IPCONMSG_DATA(im), buf, size);
 
+	pthread_mutex_lock(&imi->mutex);
 	ret = send_unicast_msg(imi,
 			0,
 			NLM_F_REQUEST | NLM_F_ACK,
@@ -480,8 +481,10 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 				break;
 
 			if (nlh->nlmsg_type != NLMSG_ERROR) {
+
 				if (queue_msg(imi, nlh, &from))
 					libipcon_warn("Received msg maybe lost.\n");
+
 				continue;
 			}
 
@@ -499,6 +502,7 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 
 		} while (1);
 	}
+	pthread_mutex_unlock(&imi->mutex);
 
 	return ret;
 }
@@ -511,11 +515,16 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 	if (!imi || !group)
 		return -EINVAL;
 
+	pthread_mutex_lock(&imi->mutex);
+
 	ret = setsockopt(imi->sk,
 			SOL_NETLINK,
 			NETLINK_ADD_MEMBERSHIP,
 			&group,
 			sizeof(group));
+
+	pthread_mutex_unlock(&imi->mutex);
+
 	if (ret == -1)
 		ret = -errno;
 	else
@@ -528,13 +537,28 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 __u32 ipcon_get_selfport(IPCON_HANDLER handler)
 {
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	__u32 ret = 0;
 
-	return imi->port;
+	if (imi) {
+		pthread_mutex_lock(&imi->mutex);
+		ret = imi->port;
+		pthread_mutex_unlock(&imi->mutex);
+	}
+
+	return ret;
 }
 
-const struct ipcon_srv *ipcon_get_selfsrv(IPCON_HANDLER handler)
+struct ipcon_srv *ipcon_get_selfsrv(IPCON_HANDLER handler)
 {
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_srv *srv = NULL;
 
-	return (const struct ipcon_srv *) &imi->srv;
+	srv = malloc(sizeof(*srv));
+	if (imi && srv) {
+		pthread_mutex_lock(&imi->mutex);
+		memcpy(srv, &imi->srv, sizeof(*srv));
+		pthread_mutex_unlock(&imi->mutex);
+	}
+
+	return srv;
 }

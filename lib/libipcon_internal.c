@@ -212,3 +212,57 @@ struct ipcon_msg_link *dequeue_msg(struct ipcon_mng_info *imi)
 	}
 	return iml;
 }
+
+
+int ipcon_unregister_service_unlock(struct ipcon_mng_info *imi)
+{
+	int ret = 0;
+	struct ipcon_msghdr *im = NULL;
+	struct ipcon_srv *srv = NULL;
+
+	do {
+		if (!imi) {
+			ret = -EINVAL;
+			break;
+		}
+
+		if (imi->type != IPCON_TYPE_SERVICE) {
+			ret = -EINVAL;
+			break;
+		}
+
+		im = alloc_ipconmsg(sizeof(struct ipcon_srv));
+		if (!im) {
+			ret = -ENOMEM;
+			break;
+		}
+
+		srv = IPCONMSG_DATA(im);
+		memcpy(srv, &imi->srv, sizeof(struct ipcon_srv));
+
+		ret = send_unicast_msg(imi,
+				0,
+				NLM_F_ACK | NLM_F_REQUEST,
+				IPCON_SRV_UNREG,
+				im,
+				im->ipconmsg_len);
+		if (ret < 0)
+			break;
+
+		ret = wait_err_response(imi, 0, IPCON_SRV_UNREG);
+		if (!ret) {
+
+			libipcon_dbg("Unregister %s success.\n",
+					imi->srv.name);
+
+			memset(&imi->srv, 0, sizeof(struct ipcon_srv));
+			imi->type = IPCON_TYPE_USER;
+		} else {
+			libipcon_dbg("Unregister %s failed (%d).\n",
+					imi->srv.name, ret);
+		}
+
+	} while (0);
+
+	return ret;
+}

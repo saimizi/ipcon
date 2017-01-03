@@ -24,8 +24,10 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	IPCON_HANDLER handler;
 	unsigned int srv_group = IPCON_AUOTO_GROUP;
+	struct ipcon_srv *srv = NULL;
 
 	do {
+
 		/* Create server handler */
 		handler = ipcon_create_handler();
 		if (!handler) {
@@ -43,10 +45,14 @@ int main(int argc, char *argv[])
 			return ret;
 		}
 
+		srv = ipcon_get_selfsrv(handler);
+		if (!srv)
+			break;
+
 		ipcon_info("%s@%lu (group=%u) registered.\n",
-				ipcon_get_selfsrv(handler)->name,
+				srv->name,
 				(unsigned long)ipcon_get_selfport(handler),
-				ipcon_get_selfsrv(handler)->group);
+				srv->group);
 
 		while (1) {
 			__u32 src_port = 0;
@@ -87,6 +93,9 @@ int main(int argc, char *argv[])
 
 
 	} while (0);
+
+	if (!srv)
+		free(srv);
 
 	/* Unregister service */
 	ret = ipcon_unregister_service(handler);

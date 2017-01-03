@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "libipcon.h"
 
@@ -36,6 +37,7 @@ struct ipcon_msg_link {
 };
 
 struct ipcon_mng_info {
+	pthread_mutex_t mutex;
 	int sk;
 	__u32 port;
 	enum ipcon_type type;
