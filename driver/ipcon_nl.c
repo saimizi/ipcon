@@ -300,10 +300,12 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			case IPCON_AUOTO_GROUP:
 				/*
 				 * Auto group id
-				 * The lowest position returned from ffs() is 1
+				 * The LSB returned from ffs() is 1, while LSB
+				 * in set_bit() is 0, so do not use set_bit()
+				 * directly, use reg_group() instead.
 				 */
 				ip->group = ffs(~group_bitflag);
-				set_bit(ip->group, &group_bitflag);
+				reg_group(ip->group);
 				break;
 			default: /* required group id */
 				if (group_inuse(ip->group))
@@ -474,6 +476,19 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 					im->ipconmsg_len);
 
 			kfree(im);
+			break;
+
+		case IPCON_GROUP_RESLOVE:
+			im = NLMSG_DATA(nlh);
+			if (!im) {
+				error = -EINVAL;
+				break;
+			}
+			if (group_inuse(im->group))
+				error = 0;
+			else
+				error = -EINVAL;
+
 			break;
 
 		case IPCON_SRV_DUMP:

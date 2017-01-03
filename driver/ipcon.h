@@ -23,8 +23,9 @@ enum MSG_TYPE {
 	IPCON_SRV_UNREG = 0x13,
 	IPCON_SRV_DUMP = 0x14,
 	IPCON_SRV_RESLOVE = 0x15,
-	IPCON_USER = 0x16,
-	IPCON_MULICAST_EVENT = 0x17,
+	IPCON_GROUP_RESLOVE = 0x16,
+	IPCON_USER = 0x17,
+	IPCON_MULICAST_EVENT = 0x18,
 	MSG_MAX,
 };
 
@@ -52,7 +53,7 @@ struct ipcon_msghdr {
 		__u32 rport;	/* Real port number in IPCON_MULICAST_EVENT */
 		__u32 selfid;	/* self portid in IPCON_GET_SELFID */
 		unsigned int group;
-				/* Allocaed group number in service register */
+				/* IPCON_SRV_REG and IPCON_GROUP_RESLOVE */
 		struct {
 			unsigned int group;
 			__u32 port;

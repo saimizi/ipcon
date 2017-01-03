@@ -132,25 +132,23 @@ int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt)
 	/* FIXME: Add timeout... */
 	do {
 		ret = rcv_msg(imi, &from, &nlh, sizeof(*nlerr));
-		if (!ret) {
-			if (nlh->nlmsg_type != NLMSG_ERROR) {
-				if (queue_msg(imi, nlh, &from))
-					libipcon_warn(
-						"Received msg maybe lost.\n");
-				continue;
-			}
+		if (ret < 0)
+			break;
 
-			nlerr = NLMSG_DATA(nlh);
-			if (nlerr->msg.nlmsg_type == mt) {
-				ret = nlerr->error;
-				break;
-			}
+		if (nlh->nlmsg_type != NLMSG_ERROR) {
+			if (queue_msg(imi, nlh, &from))
+				libipcon_warn(
+					"Received msg maybe lost.\n");
+			continue;
+		}
 
-			free(nlh);
-			nlh = NULL;
-		} else {
+		nlerr = NLMSG_DATA(nlh);
+		if (nlerr->msg.nlmsg_type == mt) {
+			ret = nlerr->error;
 			break;
 		}
+
+		free(nlh);
 	} while (1);
 
 	return ret;

@@ -511,24 +511,52 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
+	struct ipcon_msghdr *im = NULL;
 
 	if (!imi || !group)
 		return -EINVAL;
 
-	pthread_mutex_lock(&imi->mutex);
+	do {
 
-	ret = setsockopt(imi->sk,
-			SOL_NETLINK,
-			NETLINK_ADD_MEMBERSHIP,
-			&group,
-			sizeof(group));
+		im = alloc_ipconmsg(0);
+		if (!im) {
+			ret = -ENOMEM;
+			break;
+		}
 
-	pthread_mutex_unlock(&imi->mutex);
+		im->group = group;
 
-	if (ret == -1)
-		ret = -errno;
-	else
-		ret = 0;
+		pthread_mutex_lock(&imi->mutex);
+		ret = send_unicast_msg(imi,
+				0,
+				NLM_F_ACK | NLM_F_REQUEST,
+				IPCON_GROUP_RESLOVE,
+				im,
+				im->ipconmsg_len);
+		free(im);
+		if (ret < 0)
+			break;
+
+		ret = wait_err_response(imi, 0, IPCON_GROUP_RESLOVE);
+		if (ret < 0) {
+			libipcon_err("No group %u registerred.\n", group);
+			break;
+		}
+
+		ret = setsockopt(imi->sk,
+				SOL_NETLINK,
+				NETLINK_ADD_MEMBERSHIP,
+				&group,
+				sizeof(group));
+
+		pthread_mutex_unlock(&imi->mutex);
+
+		if (ret == -1)
+			ret = -errno;
+		else
+			ret = 0;
+
+	} while (0);
 
 	return ret;
 
