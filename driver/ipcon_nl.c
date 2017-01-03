@@ -36,6 +36,9 @@ static inline void unreg_group(int group)
 	clear_bit(group - 1, &group_bitflag);
 }
 
+/*
+ * This function is called from another context.
+ */
 static int ipcon_netlink_notify(struct notifier_block *nb,
 				  unsigned long state,
 				  void *_notify)
@@ -53,9 +56,45 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 						GFP_ATOMIC);
 
 				if (im) {
+					struct ipcon_tree_node *nd = NULL;
+
 					ike = IPCONMSG_DATA(im);
-					ike->event = IPCON_SRV_REMOVE;
+
+					/*
+					 * If removed point is a registerred
+					 * service. unregster it and inform user
+					 * space.
+					 */
+					mutex_lock(&ipcon_mutex);
+					nd = cp_lookup_by_port(cp_tree_root,
+							n->portid);
+					if (nd) {
+						ike->event = IPCON_SRV_REMOVE;
+						ike->port = nd->port;
+						ike->group = nd->srv.group;
+						strcpy(ike->name, nd->srv.name);
+						im->rport = 0;
+
+						cp_detach_node(&cp_tree_root,
+								nd);
+						cp_free_node(nd);
+
+						ipcon_multicast(0,
+							IPCON_MC_GROUP_KERN,
+							im,
+							im->ipconmsg_len,
+							GFP_ATOMIC);
+					}
+					mutex_unlock(&ipcon_mutex);
+
+
+					/*
+					 * Inform point removed.
+					 */
+					ike->event = IPCON_POINT_REMOVE;
 					ike->port = n->portid;
+					ike->group = 0;
+					ike->name[0] = '\0';
 
 					ipcon_multicast(0,
 						IPCON_MC_GROUP_KERN,
@@ -64,11 +103,6 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 						GFP_KERNEL);
 
 					kfree(im);
-
-					ipcon_info(
-						"notify: port: %d stat: %lx\n",
-						n->portid,
-						state);
 				}
 			}
 
@@ -217,6 +251,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		struct ipcon_srv *ip = NULL;
 		char *srv_name = NULL;
 		struct ipcon_msghdr *im = NULL;
+		struct ipcon_kern_event *ike = NULL;
 
 		switch (type) {
 		case IPCON_GET_SELFID:
@@ -324,6 +359,34 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			}
 
 			kfree(im);
+
+			/* Inform user space that service added */
+			if (error)
+				break;
+
+			im = alloc_ipconmsg(
+				sizeof(struct ipcon_kern_event),
+				GFP_ATOMIC);
+
+			if (!im) {
+				ipcon_err("IPCON_SRV_UNREG notify failed\n");
+				break;
+			}
+
+			ike = IPCONMSG_DATA(im);
+			ike->event = IPCON_SRV_ADD;
+			ike->port =  nd->port;
+			ike->group =  nd->srv.group;
+			strcpy(ike->name, nd->srv.name);
+			im->rport = 0;
+
+			ipcon_multicast(0,
+				IPCON_MC_GROUP_KERN,
+				im,
+				im->ipconmsg_len,
+				GFP_ATOMIC);
+
+			kfree(im);
 			break;
 
 		case IPCON_SRV_UNREG:
@@ -351,7 +414,34 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (nd->srv.group)
 				clear_bit(ip->group, &group_bitflag);
 
+
+			/* Inform user space that service removed */
+			im = alloc_ipconmsg(
+				sizeof(struct ipcon_kern_event),
+				GFP_ATOMIC);
+
+			if (!im) {
+				ipcon_err("IPCON_SRV_UNREG notify failed\n");
+				cp_free_node(nd);
+				break;
+			}
+
+			ike = IPCONMSG_DATA(im);
+			ike->event = IPCON_SRV_REMOVE;
+			ike->port =  nd->port;
+			ike->group =  nd->srv.group;
+			strcpy(ike->name, nd->srv.name);
+			im->rport = 0;
+
+			ipcon_multicast(0,
+				IPCON_MC_GROUP_KERN,
+				im,
+				im->ipconmsg_len,
+				GFP_ATOMIC);
+			kfree(im);
+
 			cp_free_node(nd);
+
 			break;
 
 		case IPCON_SRV_RESLOVE:
@@ -429,6 +519,16 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 void ipcon_nl_rcv_msg(struct sk_buff *skb)
 {
+	/*
+	 * Sequentialize the message receiving from user application.
+	 * this protects cp_tree_root and group_bitflag so that no
+	 * seperated protetion needed.
+	 *
+	 * The possible potential confilc processing is
+	 * - Other user process's asychronizing call.
+	 * - netlink notifier.
+	 *   see ipcon_netlink_notifier().
+	 */
 	mutex_lock(&ipcon_mutex);
 	netlink_rcv_skb(skb, &ipcon_msg_handler);
 	mutex_unlock(&ipcon_mutex);

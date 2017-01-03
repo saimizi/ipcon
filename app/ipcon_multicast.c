@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
 	IPCON_HANDLER handler;
 	unsigned int srv_group;
 	__u32 srv_port;
+	unsigned int should_quit = 0;
 
 	do {
 		/* Create server handler */
@@ -67,7 +68,7 @@ int main(int argc, char *argv[])
 		}
 
 		/* Wait client */
-		while (1) {
+		while (!should_quit) {
 			__u32 src_port = 0;
 			char *buf = NULL;
 			int len = 0;
@@ -98,16 +99,33 @@ int main(int argc, char *argv[])
 				struct ipcon_kern_event *ike =
 					(struct ipcon_kern_event *)buf;
 
-				ipcon_info("Srv %d is %s\n",
-					(int) ike->port,
-					(ike->event == IPCON_SRV_REMOVE) ?
-							"Removed" : "Added");
-
-				if (ike->port == srv_port) {
-					ipcon_info("Quit...\n");
-					free(buf);
+				switch (ike->event) {
+				case IPCON_SRV_ADD:
+					ipcon_info(
+						"Srv %s@%lu (grp: %u) added\n",
+						ike->name,
+						(unsigned long) ike->port,
+						ike->group);
 					break;
+				case IPCON_SRV_REMOVE:
+					ipcon_info(
+						"Srv %s@%lu (grp: %u) removed\n",
+						ike->name,
+						(unsigned long) ike->port,
+						ike->group);
+					break;
+				case IPCON_POINT_REMOVE:
+					ipcon_info("Point %lu removed\n",
+						(unsigned long) ike->port);
 
+					if (ike->port == srv_port) {
+						ipcon_info("Quit...\n");
+						should_quit = 1;
+					}
+					break;
+				default:
+					ipcon_err("Unknown kernel event (%d).\n",
+						ike->event);
 				}
 			}
 

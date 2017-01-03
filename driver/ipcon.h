@@ -7,7 +7,7 @@
 
 #define NETLINK_IPCON 29
 
-#define IPCON_MAX_SRV_NAME_LEN	128
+#define IPCON_MAX_SRV_NAME_LEN	16
 
 #define IPCON_MAX_GROUP		32
 #define IPCON_AUOTO_GROUP	(IPCON_MAX_GROUP + 1)
@@ -31,6 +31,7 @@ enum MSG_TYPE {
 /* IPCON kernel event (group 1) */
 #define IPCON_MC_GROUP_KERN	(1)
 enum IPCON_KERN_EVENT {
+	IPCON_POINT_REMOVE,
 	IPCON_SRV_ADD,
 	IPCON_SRV_REMOVE
 };
@@ -38,15 +39,17 @@ enum IPCON_KERN_EVENT {
 struct ipcon_kern_event {
 	enum IPCON_KERN_EVENT	event;
 	__u32 port;
+	/* The following are only meaningful in IPCON_SRV_* msg */
+	char name[IPCON_MAX_SRV_NAME_LEN];
+	unsigned int group;
 };
 
 /* IPCON message format */
-#define MAX_IPCONMSG_LEN	(512)
 struct ipcon_msghdr {
 	__u32 ipconmsg_len;	/* Total msg length including header */
 	__u32 size;		/* User data real size */
 	union {
-		__u32 rport;	/* Port number in multicast message */
+		__u32 rport;	/* Real port number in IPCON_MULICAST_EVENT */
 		__u32 selfid;	/* self portid in IPCON_GET_SELFID */
 		unsigned int group;
 				/* Allocaed group number in service register */
@@ -56,6 +59,8 @@ struct ipcon_msghdr {
 		} srv;		/* Service information in reslove */
 	};
 };
+
+#define MAX_IPCONMSG_LEN	(sizeof(struct ipcon_msghdr) + 512)
 
 #define IPCONMSG_ALIGNTO	4U
 #define IPCONMSG_ALIGN(len) \
