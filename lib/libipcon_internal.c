@@ -237,6 +237,7 @@ int ipcon_unregister_service_unlock(struct ipcon_mng_info *imi)
 
 		srv = IPCONMSG_DATA(im);
 		memcpy(srv, &imi->srv, sizeof(struct ipcon_srv));
+		im->auth_key = imi->auth_key;
 
 		ret = send_unicast_msg(imi,
 				0,

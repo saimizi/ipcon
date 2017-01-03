@@ -40,6 +40,7 @@ struct ipcon_mng_info {
 	pthread_mutex_t mutex;
 	int sk;
 	__u32 port;
+	__u32 auth_key;
 	enum ipcon_type type;
 	struct ipcon_srv srv;
 	struct ipcon_msg_link *msg_queue;

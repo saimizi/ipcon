@@ -212,6 +212,7 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 				im = NLMSG_DATA(nlh);
 
 				imi->srv.group = im->group;
+				imi->auth_key = im->auth_key;
 				strcpy(imi->srv.name, name);
 				imi->type = IPCON_TYPE_SERVICE;
 
@@ -338,17 +339,17 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 		unsigned int *group, void **buf, __u32 max_msg_size_hint)
 {
 	int ret = 0;
-	struct nlmsghdr *nlh = NULL;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	struct ipcon_msghdr *im = NULL;
-	unsigned int t_group = 0;
-	unsigned int t_port = 0;
 
 	if (!imi)
 		return -EINVAL;
 
 	do {
 		char *tmp_buf = NULL;
+		struct nlmsghdr *nlh = NULL;
+		unsigned int t_group = 0;
+		__u32 t_port = 0;
 
 		/* Check queued message */
 		pthread_mutex_lock(&imi->mutex);
@@ -381,6 +382,16 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 				libipcon_err("Unexpected nlmsg_err msg.\n");
 				continue;
 
+			}
+
+			if (nlh->nlmsg_type == IPCON_MULICAST_EVENT &&
+					t_port != 0) {
+				free(nlh);
+				libipcon_err(
+					"Suspicious msg from %lu as %lu.\n",
+					(unsigned long)t_port,
+					(unsigned long)nlh->nlmsg_pid);
+				continue;
 			}
 
 			im = NLMSG_DATA(nlh);
@@ -456,6 +467,7 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 	im->rport = imi->port;
 	im->size = (__u32)size;
 	im->ipconmsg_len = IPCONMSG_SPACE(size);
+	im->auth_key = imi->auth_key;
 
 	memcpy(IPCONMSG_DATA(im), buf, size);
 

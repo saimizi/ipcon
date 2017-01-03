@@ -329,6 +329,10 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			}
 
 			im->group = nd->srv.group;
+
+			/* Alloc a random auth_key for service */
+			get_random_bytes(&nd->auth_key, sizeof(__u32));
+			im->auth_key = nd->auth_key;
 			error = cp_insert(&cp_tree_root, nd);
 			if (error) {
 				cp_free_node(nd);
@@ -407,11 +411,23 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			}
 
 			nd = cp_lookup(cp_tree_root, ip->name);
-			if (!nd)
+			if (!nd) {
 				error = -EINVAL;
-			else
-				error = cp_detach_node(&cp_tree_root, nd);
+				break;
+			}
 
+			if (nd->srv.group != ip->group) {
+				error = -EINVAL;
+				break;
+			}
+
+
+			if (im->auth_key != nd->auth_key) {
+				error = -EPERM;
+				break;
+			}
+
+			error = cp_detach_node(&cp_tree_root, nd);
 			if (error)
 				break;
 
@@ -515,6 +531,11 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if ((nd->srv.group == IPCON_MC_GROUP_KERN) ||
 					(nd->srv.group > 32)) {
 				error = -EINVAL;
+				break;
+			}
+
+			if (im->auth_key != nd->auth_key) {
+				error = -EPERM;
 				break;
 			}
 

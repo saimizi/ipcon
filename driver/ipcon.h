@@ -48,7 +48,11 @@ struct ipcon_kern_event {
 /* IPCON message format */
 struct ipcon_msghdr {
 	__u32 ipconmsg_len;	/* Total msg length including header */
-	__u32 size;		/* User data real size */
+	__u32 size;		/*User data real size */
+	__u32 auth_key;		/*
+				 * Authencation key between kernel and
+				 * user space for service.
+				 */
 	union {
 		__u32 rport;	/* Real port number in IPCON_MULICAST_EVENT */
 		__u32 selfid;	/* self portid in IPCON_GET_SELFID */

@@ -1,4 +1,4 @@
-bin_PROGRAMS = ipcon_dump ipcon_multicast ipcon_server ipcon_cmd
+bin_PROGRAMS = ipcon_dump ipcon_multicast ipcon_server ipcon_cmd ipcon_evil
 
 common_cflags = -g -O2 -Wall \
 		-I ${top_builddir}/driver/ \
@@ -24,6 +24,10 @@ ipcon_cmd_LDADD = -lipcon $(common_ldflags)
 
 ipcon_dump_SOURCES = ipcon_dump.c
 ipcon_dump_CFLAGS =$(common_cflags) \
+		-I ${top_builddir}/driver/
+
+ipcon_evil_SOURCES = ipcon_evil.c
+ipcon_evil_CFLAGS =$(common_cflags) \
 		-I ${top_builddir}/driver/
 
 AM_CFLAGS = -g -O2 -Wall
