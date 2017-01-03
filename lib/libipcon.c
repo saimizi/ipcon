@@ -562,6 +562,26 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 
 }
 
+int ipcon_leave_group(IPCON_HANDLER handler, unsigned int group)
+{
+	int ret = 0;
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+
+	if (!imi || !group)
+		return -EINVAL;
+
+	pthread_mutex_lock(&imi->mutex);
+	ret = setsockopt(imi->sk,
+			SOL_NETLINK,
+			NETLINK_DROP_MEMBERSHIP,
+			&group,
+			sizeof(group));
+
+	pthread_mutex_unlock(&imi->mutex);
+
+	return ret;
+}
+
 __u32 ipcon_get_selfport(IPCON_HANDLER handler)
 {
 	struct ipcon_mng_info *imi = handler_to_info(handler);

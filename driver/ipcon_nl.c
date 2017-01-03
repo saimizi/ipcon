@@ -340,10 +340,12 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
-			ipcon_info("SRVREG: port=%lu, name=%s group=%u\n",
+			ipcon_info("SRVREG: port=%lu, name=%s grp=%u\n",
 					(unsigned long)nd->port,
 					nd->srv.name,
 					nd->srv.group);
+			ipcon_dbg("SRVREG: group_bitflag=0x%lx\n",
+					group_bitflag);
 
 			error = ipcon_unicast(
 					NETLINK_CB(skb).portid,
@@ -414,7 +416,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 
 			if (nd->srv.group)
-				clear_bit(ip->group, &group_bitflag);
+				unreg_group(nd->srv.group);
 
 
 			/* Inform user space that service removed */
@@ -444,6 +446,8 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 			cp_free_node(nd);
 
+			ipcon_dbg("SRVUNREG: group_bitflag=0x%lx\n",
+					group_bitflag);
 			break;
 
 		case IPCON_SRV_RESLOVE:
