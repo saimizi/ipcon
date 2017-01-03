@@ -456,7 +456,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 			nd = cp_lookup(cp_tree_root, srv_name);
 			if (!nd) {
-				error = -EINVAL;
+				error = -ESRCH;
 				break;
 			}
 
@@ -487,7 +487,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (group_inuse(im->group))
 				error = 0;
 			else
-				error = -EINVAL;
+				error = -ESRCH;
 
 			break;
 
@@ -520,6 +520,13 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 					im,
 					im->ipconmsg_len,
 					GFP_ATOMIC);
+
+			/*
+			 * If no process suscribes the group,
+			 * just return as success.
+			 */
+			if (error == -ESRCH)
+				error = 0;
 			break;
 
 		default:
