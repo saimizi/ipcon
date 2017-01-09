@@ -139,10 +139,16 @@ int main(int argc, char *argv[])
 			}
 
 			if (group == srv_group) {
-				ipcon_info("Multicast msg from %u@%u :%s\n",
+				if (!strcmp(buf, "byeall")) {
+					ipcon_info("Quit...\n");
+					should_quit = 1;
+				} else {
+					ipcon_info("MC msg from %u@%u :%s\n",
 						srv_group,
 						src_port,
 						buf);
+				}
+
 				free(buf);
 				continue;
 			}

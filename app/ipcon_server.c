@@ -19,12 +19,58 @@
 #define ipcon_err(fmt, ...) \
 	printf("[ipcon_server] %s-%d "fmt, __func__, __LINE__, ##__VA_ARGS__)
 
+static int do_mainloop(IPCON_HANDLER handler)
+{
+	int should_quit = 0;
+	int ret = 0;
+
+	while (!should_quit) {
+		__u32 src_port = 0;
+		char *buf = NULL;
+		int len = 0;
+		unsigned int group = 0;
+
+		len = ipcon_rcv(handler, &src_port, &group, (void **) &buf, 0);
+		if (len < 0) {
+			ipcon_err("Receive msg from failed\n");
+			break;
+		}
+
+		ipcon_info("%d Msg from port %lu size= %d: %s\n",
+			getpid(), (unsigned long)src_port, len, buf);
+
+		if (!strcmp(buf, "bye")) {
+			ipcon_info("Quit...\n");
+			free(buf);
+			break;
+		}
+
+		ret = ipcon_send_multicast(handler, buf, strlen(buf) + 1);
+
+		ipcon_info("Forward msg to group %u %s (%d)\n",
+				ipcon_get_selfsrv(handler)->group,
+				(ret < 0) ?  "failed" : "success",
+				ret);
+
+		if (!strcmp(buf, "byeall")) {
+			ipcon_info("Quit...\n");
+			free(buf);
+			break;
+		}
+
+		free(buf);
+	}
+
+	return ret;
+}
+
 int main(int argc, char *argv[])
 {
 	int ret = 0;
 	IPCON_HANDLER handler;
 	unsigned int srv_group = IPCON_AUOTO_GROUP;
 	struct ipcon_srv *srv = NULL;
+	pid_t pid;
 
 	do {
 
@@ -54,43 +100,15 @@ int main(int argc, char *argv[])
 				(unsigned long)ipcon_get_selfport(handler),
 				srv->group);
 
-		while (1) {
-			__u32 src_port = 0;
-			char *buf = NULL;
-			int len = 0;
-			unsigned int group = 0;
+		pid = fork();
+		if (pid)
+			ret = do_mainloop(handler);
+		else {
+			char const *cmd = "/usr/bin/ipcon_multicast";
+			char const *argv[] = {cmd, NULL};
 
-			len = ipcon_rcv(handler,
-					&src_port,
-					&group,
-					(void **) &buf,
-					0);
-
-			if (len < 0) {
-				ipcon_err("Receive msg from failed\n");
-				break;
-			}
-
-			ipcon_info("Msg from port %lu size= %d: %s\n",
-				(unsigned long)src_port, len, buf);
-
-			if (!strcmp(buf, "bye")) {
-				free(buf);
-				break;
-			}
-
-			ret = ipcon_send_multicast(handler,
-					buf,
-					strlen(buf) + 1);
-
-			ipcon_info("Forward msg to group %u %s (%d)\n",
-					ipcon_get_selfsrv(handler)->group,
-					(ret < 0) ?  "failed" : "success",
-					ret);
-			free(buf);
+			execve(cmd, argv, NULL);
 		}
-
-
 
 	} while (0);
 
