@@ -24,4 +24,5 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group);
 int ipcon_leave_group(IPCON_HANDLER handler, unsigned int group);
 __u32 ipcon_get_selfport(IPCON_HANDLER handler);
 struct ipcon_srv *ipcon_get_selfsrv(IPCON_HANDLER handler);
+int ipcon_getfd(IPCON_HANDLER handler);
 #endif

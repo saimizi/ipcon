@@ -5,11 +5,10 @@
 #include <linux/netlink.h>
 #include <linux/socket.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "libipcon.h"
 #include "libipcon_internal.h"
-
-
 
 IPCON_HANDLER ipcon_create_handler(void)
 {
@@ -30,7 +29,9 @@ IPCON_HANDLER ipcon_create_handler(void)
 		pthread_mutexattr_settype(&mtxAttr, PTHREAD_MUTEX_ERRORCHECK);
 		pthread_mutex_init(&imi->mutex, &mtxAttr);
 
-		imi->sk = socket(AF_NETLINK, SOCK_RAW, NETLINK_IPCON);
+		imi->sk = socket(AF_NETLINK,
+				SOCK_RAW | SOCK_CLOEXEC,
+				NETLINK_IPCON);
 		if (imi->sk < 0) {
 			libipcon_err("Failed to open netlink socket.\n");
 			free(imi);
@@ -274,7 +275,7 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 			break;
 		}
 
-		im = alloc_ipconmsg(strlen(name) + 1);
+		im = alloc_ipconmsg((__u32)strlen(name) + 1);
 		if (!im) {
 			ret = -ENOMEM;
 			break;
@@ -435,7 +436,7 @@ int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 	if (!imi || !port || !buf || !size)
 		return -EINVAL;
 
-	im = alloc_ipconmsg(size);
+	im = alloc_ipconmsg((__u32)size);
 	if (!im)
 		return -ENOMEM;
 
@@ -460,7 +461,7 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 		(imi->type != IPCON_TYPE_SERVICE) || !imi->srv.group)
 		return -EINVAL;
 
-	im = alloc_ipconmsg(size);
+	im = alloc_ipconmsg((__u32)size);
 	if (!im)
 		return -ENOMEM;
 
@@ -621,4 +622,11 @@ struct ipcon_srv *ipcon_get_selfsrv(IPCON_HANDLER handler)
 	}
 
 	return srv;
+}
+
+int ipcon_getfd(IPCON_HANDLER handler)
+{
+	struct ipcon_mng_info *imi = handler_to_info(handler);
+
+	return imi->sk;
 }
