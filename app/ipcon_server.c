@@ -36,14 +36,19 @@ static int do_mainloop(IPCON_HANDLER handler)
 			break;
 		}
 
-		ipcon_info("%d Msg from port %lu size= %d: %s\n",
-			getpid(), (unsigned long)src_port, len, buf);
+		ipcon_info("Msg from port %lu size= %d: %s\n",
+			(unsigned long)src_port, len, buf);
 
 		if (!strcmp(buf, "bye")) {
 			ipcon_info("Quit...\n");
 			free(buf);
 			break;
 		}
+
+		ret = ipcon_send_unicast(handler,
+					src_port,
+					"OK",
+					strlen("OK") + 1);
 
 		ret = ipcon_send_multicast(handler, buf, strlen(buf) + 1);
 

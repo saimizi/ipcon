@@ -50,16 +50,45 @@ int main(int argc, char *argv[])
 			ipcon_err("Failed to find service ipcon_server.\n");
 		} else {
 			ipcon_info(
-				"service %s at port %lu (grp: %u).\n",
+				"Found service %s at port %lu (grp: %u).\n",
 				"ipcon_server",
 				(unsigned long)srv_port,
 				group);
+
+			ipcon_info("Send %s to server\n", msg);
 
 			/* Send message to server */
 			ipcon_send_unicast(handler,
 					srv_port,
 					msg,
 					strlen(msg) + 1);
+
+			while (1) {
+				char *buf = NULL;
+				int len = 0;
+				__u32 src_port = 0;
+				unsigned int group = 0;
+
+				len = ipcon_rcv(handler,
+						&src_port,
+						&group,
+						&buf,
+						0);
+
+				if (ret < 0) {
+					ipcon_err(
+						"Receive from server fail.\n");
+					break;
+				}
+
+				if (src_port == srv_port) {
+					ipcon_err("Server return : %s\n", buf);
+					free(buf);
+					break;
+				}
+
+				free(buf);
+			}
 		}
 
 		/* Free client handler */
