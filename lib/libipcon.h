@@ -16,7 +16,7 @@ int ipcon_find_service(IPCON_HANDLER handler,
 			__u32 *srv_port,
 			unsigned int *group);
 int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
-		unsigned int *group, void **buf, __u32 max_msg_size);
+			unsigned int *group, void **buf);
 int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 				void *buf, size_t size);
 int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size);

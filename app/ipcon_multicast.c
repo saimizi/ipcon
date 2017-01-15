@@ -126,11 +126,8 @@ int main(int argc, char *argv[])
 			int len = 0;
 			unsigned int group = 0;
 
-			len = ipcon_rcv(handler,
-					&src_port,
-					&group,
-					(void **) &buf,
-					0);
+			len = ipcon_rcv(handler, &src_port, &group,
+					(void **) &buf);
 
 			if (len < 0) {
 				ipcon_err("Receive msg from failed\n");
