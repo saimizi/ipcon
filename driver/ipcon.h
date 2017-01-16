@@ -7,7 +7,7 @@
 
 #define NETLINK_IPCON 29
 
-#define IPCON_MAX_SRV_NAME_LEN	16
+#define IPCON_MAX_SRV_NAME_LEN	32
 
 #define IPCON_MAX_GROUP		32
 #define IPCON_AUOTO_GROUP	(IPCON_MAX_GROUP + 1)
@@ -125,10 +125,5 @@ static inline struct ipcon_msghdr *alloc_ipconmsg(__u32 size)
 	return result;
 }
 #endif
-
-#define max_size_nlerr(size) \
-		(size > sizeof(struct nlmsgerr) ? \
-		size : sizeof(struct nlmsgerr))
-
 
 #endif /* __IPCON_H__ */

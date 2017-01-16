@@ -1,4 +1,4 @@
-bin_PROGRAMS = ipcon_dump ipcon_multicast ipcon_server ipcon_cmd ipcon_evil
+bin_PROGRAMS = ipcon_dump ipcon_user ipcon_server ipcon_sender ipcon_cmd ipcon_evil
 
 common_cflags = -g -O2 -Wall \
 		-I ${top_builddir}/driver/ \
@@ -7,15 +7,20 @@ common_cflags = -g -O2 -Wall \
 
 common_ldflags =$(LIBNL_GENL_LIBS)
 
-ipcon_multicast_SOURCES = ipcon_multicast.c
-ipcon_multicast_CFLAGS =$(common_cflags)
-ipcon_multicast_LDFLAGS= -L${top_builddir}/lib/.libs
-ipcon_multicast_LDADD = -lipcon $(common_ldflags)
+ipcon_user_SOURCES = ipcon_user.c
+ipcon_user_CFLAGS =$(common_cflags)
+ipcon_user_LDFLAGS= -L${top_builddir}/lib/.libs
+ipcon_user_LDADD = -lipcon $(common_ldflags)
 
 ipcon_server_SOURCES = ipcon_server.c
 ipcon_server_CFLAGS =$(common_cflags)
 ipcon_server_LDFLAGS= -L${top_builddir}/lib/.libs
 ipcon_server_LDADD = -lipcon $(common_ldflags)
+
+ipcon_sender_SOURCES = ipcon_sender.c
+ipcon_sender_CFLAGS =$(common_cflags)
+ipcon_sender_LDFLAGS= -L${top_builddir}/lib/.libs
+ipcon_sender_LDADD = -lipcon $(common_ldflags)
 
 ipcon_cmd_SOURCES = ipcon_cmd.c
 ipcon_cmd_CFLAGS =$(common_cflags)

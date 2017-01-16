@@ -44,70 +44,64 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 				  void *_notify)
 {
 	struct netlink_notify *n = _notify;
+	struct ipcon_kern_event *ike = NULL;
+	struct ipcon_msghdr *im = NULL;
+	struct ipcon_tree_node *nd = NULL;
 
-	if (n) {
-		if (n->protocol == NETLINK_IPCON) {
-			struct ipcon_kern_event *ike = NULL;
-			struct ipcon_msghdr *im = NULL;
+	if (!n)
+		return 0;
 
-			if (state == NETLINK_URELEASE) {
-				im = alloc_ipconmsg(
-						sizeof(struct ipcon_kern_event),
-						GFP_ATOMIC);
+	if (n->protocol != NETLINK_IPCON)
+		return 0;
 
-				if (im) {
-					struct ipcon_tree_node *nd = NULL;
+	if (state != NETLINK_URELEASE)
+		return 0;
 
-					ike = IPCONMSG_DATA(im);
-
-					/*
-					 * If removed point is a registerred
-					 * service. unregster it and inform user
-					 * space.
-					 */
-					mutex_lock(&ipcon_mutex);
-					nd = cp_lookup_by_port(cp_tree_root,
-							n->portid);
-					if (nd) {
-						ike->event = IPCON_SRV_REMOVE;
-						ike->port = nd->port;
-						ike->group = nd->srv.group;
-						strcpy(ike->name, nd->srv.name);
-						im->rport = 0;
-
-						cp_detach_node(&cp_tree_root,
-								nd);
-						cp_free_node(nd);
-
-						ipcon_multicast(0,
-							IPCON_MC_GROUP_KERN,
-							im,
-							im->ipconmsg_len,
-							GFP_ATOMIC);
-					}
-					mutex_unlock(&ipcon_mutex);
+	im = alloc_ipconmsg(sizeof(struct ipcon_kern_event), GFP_ATOMIC);
+	if (!im)
+		return 0;
 
 
-					/*
-					 * Inform point removed.
-					 */
-					ike->event = IPCON_POINT_REMOVE;
-					ike->port = n->portid;
-					ike->group = 0;
-					ike->name[0] = '\0';
+	ike = IPCONMSG_DATA(im);
 
-					ipcon_multicast(0,
-						IPCON_MC_GROUP_KERN,
-						im,
-						im->ipconmsg_len,
-						GFP_KERNEL);
+	/*
+	 * If removed point is a registerred service. unregster it and inform
+	 * user space.
+	 */
+	mutex_lock(&ipcon_mutex);
+	nd = cp_lookup_by_port(cp_tree_root, n->portid);
 
-					kfree(im);
-				}
-			}
+	if (nd) {
+		ike->event = IPCON_SRV_REMOVE;
+		ike->port = nd->port;
+		ike->group = nd->srv.group;
+		if (nd->srv.group > 0)
+			unreg_group(nd->srv.group);
 
-		}
+		strcpy(ike->name, nd->srv.name);
+		im->rport = 0;
+
+		cp_detach_node(&cp_tree_root, nd);
+		cp_free_node(nd);
+
+		ipcon_info("Remove node: %s port: %lu group:%u\n",
+			ike->name, (unsigned long)ike->port, ike->group);
+
+		ipcon_multicast(0, IPCON_MC_GROUP_KERN, im,
+			im->ipconmsg_len, GFP_ATOMIC);
 	}
+	mutex_unlock(&ipcon_mutex);
+
+
+	ike->event = IPCON_POINT_REMOVE;
+	ike->port = n->portid;
+	ike->group = 0;
+	ike->name[0] = '\0';
+
+	ipcon_multicast(0, IPCON_MC_GROUP_KERN, im,
+			im->ipconmsg_len, GFP_KERNEL);
+
+	kfree(im);
 
 	return 0;
 }

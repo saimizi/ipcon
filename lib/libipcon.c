@@ -72,7 +72,7 @@ IPCON_HANDLER ipcon_create_handler(void)
 			/* FIXME: Add timeout here */
 			while (1) {
 				ret = rcv_msg(imi, &from, &nlh,
-					max_size_nlerr(IPCONMSG_SPACE(0)));
+					MAX_IPCONMSG_LEN);
 				if (ret < 0)
 					break;
 
@@ -206,10 +206,7 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 		struct sockaddr_nl from;
 
 		do {
-			/* FIXME: Add caching function */
-			ret = rcv_msg(imi, &from, &nlh,
-				max_size_nlerr(IPCONMSG_SPACE(0)));
-
+			ret = rcv_msg(imi, &from, &nlh, MAX_IPCONMSG_LEN);
 			if (ret)
 				break;
 
@@ -243,6 +240,8 @@ int ipcon_register_service(IPCON_HANDLER handler, char *name,
 
 			if (queue_msg(imi, nlh, &from))
 				libipcon_warn("Received msg maybe lost.\n");
+			else
+				nlh = NULL;
 
 		} while (1);
 	}
@@ -339,8 +338,7 @@ int ipcon_find_service(IPCON_HANDLER handler, char *name, __u32 *srv_port,
 			struct sockaddr_nl from;
 
 			memset(&from, 0, sizeof(from));
-			ret = rcv_msg(imi, &from, &nlh,
-					max_size_nlerr(IPCONMSG_SPACE(0)));
+			ret = rcv_msg(imi, &from, &nlh, MAX_IPCONMSG_LEN);
 			if (ret < 0)
 				break;
 
@@ -553,8 +551,7 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
 		struct sockaddr_nl from;
 
 		do {
-			/* FIXME: Add caching function */
-			ret = rcv_msg(imi, &from, &nlh, sizeof(*nlerr));
+			ret = rcv_msg(imi, &from, &nlh, MAX_IPCONMSG_LEN);
 			if (ret)
 				break;
 

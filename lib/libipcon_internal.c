@@ -86,7 +86,6 @@ int send_unicast_msg(struct ipcon_mng_info *imi, __u32 port, __u16 flag,
 int rcv_msg(struct ipcon_mng_info *imi, struct sockaddr_nl *from,
 		struct nlmsghdr **nlh, __u32 max_msg_size)
 {
-	;
 	struct iovec iov;
 	struct msghdr msg;
 	ssize_t len = 0;
@@ -131,14 +130,13 @@ int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt)
 
 	/* FIXME: Add timeout... */
 	do {
-		ret = rcv_msg(imi, &from, &nlh, sizeof(*nlerr));
+		ret = rcv_msg(imi, &from, &nlh, MAX_IPCONMSG_LEN);
 		if (ret < 0)
 			break;
 
 		if (nlh->nlmsg_type != NLMSG_ERROR) {
 			if (queue_msg(imi, nlh, &from))
-				libipcon_warn(
-					"Received msg maybe lost.\n");
+				libipcon_warn("Received msg maybe lost.\n");
 			continue;
 		}
 
@@ -159,7 +157,7 @@ int queue_msg(struct ipcon_mng_info *imi, struct nlmsghdr *nlh,
 {
 	struct ipcon_msg_link *iml = NULL;
 
-	libipcon_dbg("%s enter.", __func__);
+	libipcon_dbg("%s enter.\n", __func__);
 
 	if (!imi || !nlh || !from)
 		return -EINVAL;
@@ -198,7 +196,7 @@ struct ipcon_msg_link *dequeue_msg(struct ipcon_mng_info *imi)
 {
 	struct ipcon_msg_link *iml = NULL;
 
-	libipcon_dbg("%s enter.", __func__);
+	libipcon_dbg("%s enter.\n", __func__);
 
 	if (!imi)
 		return NULL;
@@ -208,6 +206,7 @@ struct ipcon_msg_link *dequeue_msg(struct ipcon_mng_info *imi)
 		imi->msg_queue = iml->next;
 		iml->next = NULL;
 	}
+
 	return iml;
 }
 

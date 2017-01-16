@@ -13,11 +13,11 @@
 #include "libipcon.h"
 
 #define ipcon_dbg(fmt, ...) \
-	printf("[ipcon_mc] %s-%d " fmt, __func__, __LINE__,  ##__VA_ARGS__)
+	printf("[ipcon_user] %s-%d " fmt, __func__, __LINE__,  ##__VA_ARGS__)
 #define ipcon_info(fmt, ...) \
-	printf("[ipcon_mc] %s-%d "fmt, __func__, __LINE__, ##__VA_ARGS__)
+	printf("[ipcon_user] %s-%d "fmt, __func__, __LINE__, ##__VA_ARGS__)
 #define ipcon_err(fmt, ...) \
-	printf("[ipcon_mc] %s-%d "fmt, __func__, __LINE__, ##__VA_ARGS__)
+	printf("[ipcon_user] %s-%d "fmt, __func__, __LINE__, ##__VA_ARGS__)
 
 unsigned int srv_group;
 __u32 srv_port;
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 			}
 
 			if (group == srv_group) {
-				if (!strcmp(buf, "byeall")) {
+				if (!strcmp(buf, "bye")) {
 					ipcon_info("Quit...\n");
 					should_quit = 1;
 				} else {
