@@ -8,6 +8,10 @@
 #include <pthread.h>
 #include <errno.h>
 #include <string.h>
+#ifdef SERVER_AUTO_RESTART
+#include <signal.h>
+#include <sys/wait.h>
+#endif
 
 #include "ipcon.h"
 #include "libipcon.h"
@@ -22,7 +26,6 @@
 __u32 srv_port;
 unsigned int group;
 int wait_response;
-pid_t srv_pid;
 
 static int deal_srv_add(IPCON_HANDLER handler,
 		struct ipcon_kern_event *ike)
@@ -41,9 +44,6 @@ static int deal_srv_add(IPCON_HANDLER handler,
 	return ret;
 }
 
-/*
- * If a server remove event is detected, restart it.
- */
 static int deal_srv_remove(IPCON_HANDLER handler,
 		struct ipcon_kern_event *ike)
 {
@@ -54,7 +54,9 @@ static int deal_srv_remove(IPCON_HANDLER handler,
 		ret = -EINVAL;
 	} else {
 		if (!strcmp(ike->name, "ipcon_server")) {
+#ifdef SERVER_AUTO_RESTART
 			pid_t pid;
+#endif
 
 			srv_port = 0;
 
@@ -64,6 +66,7 @@ static int deal_srv_remove(IPCON_HANDLER handler,
 			 */
 			wait_response = 0;
 
+#ifdef SERVER_AUTO_RESTART
 			ipcon_err("ipcon server is sadly lost. restart it\n");
 
 			pid = fork();
@@ -72,14 +75,23 @@ static int deal_srv_remove(IPCON_HANDLER handler,
 				char const *argv[] = {cmd, NULL};
 
 				execve(cmd, argv, NULL);
-			} else {
-				srv_pid = pid;
 			}
+#else
+			ipcon_err("ipcon server is sadly lost. Pending...\n");
+#endif
 		}
 	}
 
 	return ret;
 }
+
+#ifdef SERVER_AUTO_RESTART
+static void sig_handler(int sig)
+{
+	if (sig == SIGCHLD)
+		wait(NULL);
+}
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -88,6 +100,18 @@ int main(int argc, char *argv[])
 
 	do {
 		char *msg = NULL;
+#ifdef SERVER_AUTO_RESTART
+		struct sigaction sa;
+
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = 0;
+		sa.sa_handler = sig_handler;
+
+		if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+			ipcon_err("Failed to regster signal handler.\n");
+			break;
+		}
+#endif
 
 		if (argc <= 1)
 			break;
@@ -138,8 +162,8 @@ int main(int argc, char *argv[])
 			 * manage the state.
 			 */
 			if (srv_port && !wait_response) {
-				ipcon_info("Send %s to server %d wait_response: %d\n",
-					msg, srv_port, wait_response);
+				ipcon_info("Send %s to server %d\n",
+						msg, srv_port);
 
 				ret = ipcon_send_unicast(handler,
 						srv_port,
@@ -191,6 +215,8 @@ int main(int argc, char *argv[])
 					ipcon_err("Server return : %s\n", buf);
 					wait_response = 0;
 					if (!strcmp(buf, "bye")) {
+						ipcon_err("%s - %d: Quit...\n",
+							__func__, __LINE__);
 						free(buf);
 						break;
 					}

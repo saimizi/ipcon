@@ -9,6 +9,11 @@
 #include <errno.h>
 #include <string.h>
 
+#ifdef SERVER_AUTO_RESTART
+#include <signal.h>
+#include <sys/wait.h>
+#endif
+
 #include "ipcon.h"
 #include "libipcon.h"
 
@@ -26,7 +31,6 @@ static int do_mainloop(IPCON_HANDLER handler)
 {
 	int should_quit = 0;
 	int ret = 0;
-	pid_t pid;
 
 	while (!should_quit) {
 		__u32 src_port = 0;
@@ -42,8 +46,11 @@ static int do_mainloop(IPCON_HANDLER handler)
 		}
 
 		if (group == IPCON_MC_GROUP_KERN) {
+#ifdef SERVER_AUTO_RESTART
+			pid_t pid;
 			char const *cmd = "/usr/bin/ipcon_sender";
 			char const *argv[] = {cmd, "Hello", NULL};
+#endif
 
 			if (sender_port) {
 				struct ipcon_kern_event *ike =
@@ -51,12 +58,16 @@ static int do_mainloop(IPCON_HANDLER handler)
 
 				if ((ike->event == IPCON_POINT_REMOVE) &&
 					(ike->port == sender_port)) {
-					ipcon_err("ipcon sender is sadly lost. restart it\n");
 					sender_port = 0;
 
+#ifdef SERVER_AUTO_RESTART
+					ipcon_err("ipcon sender is sadly lost. restart it\n");
 					pid = fork();
 					if (!pid)
 						execve(cmd, argv, NULL);
+#else
+					ipcon_err("ipcon sender is sadly lost...\n");
+#endif
 				}
 			}
 
@@ -103,6 +114,13 @@ static int do_mainloop(IPCON_HANDLER handler)
 	return ret;
 }
 
+#ifdef SERVER_AUTO_RESTART
+static void sig_handler(int sig)
+{
+	if (sig == SIGCHLD)
+		wait(NULL);
+}
+#endif
 
 #define ipcon_service	"ipcon_server"
 
@@ -111,6 +129,19 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	IPCON_HANDLER handler;
 	struct ipcon_srv *srv = NULL;
+
+#ifdef SERVER_AUTO_RESTART
+		struct sigaction sa;
+
+		sigemptyset(&sa.sa_mask);
+		sa.sa_flags = 0;
+		sa.sa_handler = sig_handler;
+
+		if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+			ipcon_err("Failed to regster signal handler.\n");
+			break;
+		}
+#endif
 
 	/* Create server handler */
 	handler = ipcon_create_handler();
