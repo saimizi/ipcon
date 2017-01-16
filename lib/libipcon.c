@@ -587,12 +587,19 @@ int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size)
  *
  * Suscribe an existed multicast group.
  * If a group has not been created, return as error.
+ *
+ * rcv_last_msg:
+ *	if set to non-zero value, the last group message will be queued for
+ *	reading. This is for multicast message that represent a state.
  */
-int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
+int ipcon_join_group(IPCON_HANDLER handler, unsigned int group,
+			int rcv_last_msg)
 {
 	int ret = 0;
 	struct ipcon_mng_info *imi = handler_to_info(handler);
 	struct ipcon_msghdr *im = NULL;
+	struct nlmsghdr *nlh_cached = NULL;
+	struct sockaddr_nl from_cached;
 
 	if (!imi || !group)
 		return -EINVAL;
@@ -618,17 +625,68 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group)
 		if (ret < 0)
 			break;
 
-		ret = wait_err_response(imi, 0, IPCON_GROUP_RESLOVE);
+		do {
+			struct nlmsgerr *nlerr;
+			struct sockaddr_nl from;
+			struct nlmsghdr *nlh = NULL;
+
+			ret = rcv_msg(imi, &from, &nlh, MAX_IPCONMSG_LEN);
+			if (ret < 0)
+				break;
+
+			if (nlh->nlmsg_type == NLMSG_ERROR) {
+				nlerr = NLMSG_DATA(nlh);
+
+				if (nlerr->msg.nlmsg_type ==
+						IPCON_GROUP_RESLOVE) {
+
+					ret = nlerr->error;
+					free(nlh);
+					break;
+				}
+
+				free(nlh);
+				continue;
+			}
+
+			/* the cached multicast message*/
+			if (nlh->nlmsg_type == IPCON_GROUP_RESLOVE) {
+				if (rcv_last_msg) {
+					nlh->nlmsg_type = IPCON_MULICAST_EVENT;
+					nlh_cached = nlh;
+					memcpy(&from_cached, &from,
+							sizeof(from));
+				} else {
+					free(nlh);
+				}
+
+				continue;
+
+			}
+
+			if (queue_msg(imi, nlh, &from))
+				libipcon_warn("Received msg maybe lost.\n");
+
+		} while (1);
+
 		if (ret < 0) {
-			libipcon_err("No group %u registerred.\n", group);
-			break;
+			if (nlh_cached)
+				free(nlh_cached);
+		} else {
+			ret = setsockopt(imi->sk,
+					SOL_NETLINK,
+					NETLINK_ADD_MEMBERSHIP,
+					&group,
+					sizeof(group));
+
 		}
 
-		ret = setsockopt(imi->sk,
-				SOL_NETLINK,
-				NETLINK_ADD_MEMBERSHIP,
-				&group,
-				sizeof(group));
+		if (!ret) {
+			if (nlh_cached) {
+				if (queue_msg(imi, nlh_cached, &from_cached))
+					libipcon_warn("Failed to cache msg.\n");
+			}
+		}
 
 		pthread_mutex_unlock(&imi->mutex);
 

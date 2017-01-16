@@ -143,6 +143,7 @@ int wait_err_response(struct ipcon_mng_info *imi, __u32 port, enum MSG_TYPE mt)
 		nlerr = NLMSG_DATA(nlh);
 		if (nlerr->msg.nlmsg_type == mt) {
 			ret = nlerr->error;
+			free(nlh);
 			break;
 		}
 

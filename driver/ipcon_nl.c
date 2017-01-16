@@ -16,7 +16,24 @@ DEFINE_MUTEX(ipcon_mutex);
 static struct sock *ipcon_nl_sock;
 static struct ipcon_tree_node *cp_tree_root;
 static long int group_bitflag;
+static struct ipcon_msghdr *group_msgs_cache[32];
 
+struct ipcon_msghdr *dup_ipcon_msghdr(struct ipcon_msghdr *im,
+					gfp_t flags)
+{
+	struct ipcon_msghdr *result = NULL;
+
+	if (!im)
+		return NULL;
+
+	result = kmalloc(im->ipconmsg_len, flags);
+	if (!result)
+		return NULL;
+
+	memcpy(result, im, im->ipconmsg_len);
+
+	return result;
+}
 
 static int ipcon_multicast(u32 pid, unsigned int group,
 		void *data, size_t size, gfp_t flags);
@@ -90,7 +107,6 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 		ipcon_multicast(0, IPCON_MC_GROUP_KERN, im,
 			im->ipconmsg_len, GFP_ATOMIC);
 	}
-	mutex_unlock(&ipcon_mutex);
 
 
 	ike->event = IPCON_POINT_REMOVE;
@@ -99,7 +115,9 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 	ike->name[0] = '\0';
 
 	ipcon_multicast(0, IPCON_MC_GROUP_KERN, im,
-			im->ipconmsg_len, GFP_KERNEL);
+			im->ipconmsg_len, GFP_ATOMIC);
+
+	mutex_unlock(&ipcon_mutex);
 
 	kfree(im);
 
@@ -198,8 +216,7 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 			break;
 		}
 
-		skb = alloc_skb(NLMSG_SPACE(size),
-				GFP_ATOMIC);
+		skb = alloc_skb(NLMSG_SPACE(size), flags);
 		if (!skb) {
 			ret = -ENOMEM;
 			break;
@@ -221,10 +238,21 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 		 */
 		ret = nlmsg_multicast(ipcon_nl_sock, skb, pid, group, flags);
 
-		if (ret > 0)
+		/*
+		 * If no process suscribes the group,
+		 * just return as success.
+		 */
+		if ((ret > 0) || (ret == -ESRCH))
 			ret = 0;
 
 	} while (0);
+
+	/* Caching the last multicast message */
+	if (!ret) {
+		kfree(group_msgs_cache[group]);
+		group_msgs_cache[group] =
+			dup_ipcon_msghdr((struct ipcon_msghdr *)data, flags);
+	}
 
 	return ret;
 }
@@ -498,11 +526,24 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				error = -EINVAL;
 				break;
 			}
+
 			if (group_inuse(im->group))
 				error = 0;
 			else
 				error = -ESRCH;
 
+			if (!error) {
+				struct ipcon_msghdr *ca = NULL;
+
+				ca = group_msgs_cache[im->group];
+				if (ca)
+					error = ipcon_unicast(
+							nlh->nlmsg_pid,
+							type,
+							nlh->nlmsg_seq++,
+							ca,
+							ca->ipconmsg_len);
+			}
 			break;
 
 		case IPCON_SRV_DUMP:
@@ -539,13 +580,6 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 					im,
 					im->ipconmsg_len,
 					GFP_ATOMIC);
-
-			/*
-			 * If no process suscribes the group,
-			 * just return as success.
-			 */
-			if (error == -ESRCH)
-				error = 0;
 			break;
 
 		default:

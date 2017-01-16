@@ -20,7 +20,8 @@ int ipcon_rcv(IPCON_HANDLER handler, __u32 *port,
 int ipcon_send_unicast(IPCON_HANDLER handler, __u32 port,
 				void *buf, size_t size);
 int ipcon_send_multicast(IPCON_HANDLER handler, void *buf, size_t size);
-int ipcon_join_group(IPCON_HANDLER handler, unsigned int group);
+int ipcon_join_group(IPCON_HANDLER handler, unsigned int group,
+			int rcv_last_msg);
 int ipcon_leave_group(IPCON_HANDLER handler, unsigned int group);
 __u32 ipcon_get_selfport(IPCON_HANDLER handler);
 struct ipcon_srv *ipcon_get_selfsrv(IPCON_HANDLER handler);
