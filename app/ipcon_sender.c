@@ -25,7 +25,7 @@
 
 __u32 srv_port;
 unsigned int group;
-int wait_response;
+int may_send_msg;
 
 static int deal_srv_add(IPCON_HANDLER handler,
 		struct ipcon_kern_event *ike)
@@ -38,6 +38,7 @@ static int deal_srv_add(IPCON_HANDLER handler,
 		if (!strcmp(ike->name, "ipcon_server") && !srv_port) {
 			ipcon_dbg("found ipcon_server@%d\n", ike->port);
 			srv_port = ike->port;
+			may_send_msg = 1;
 		}
 	}
 
@@ -59,12 +60,7 @@ static int deal_srv_remove(IPCON_HANDLER handler,
 #endif
 
 			srv_port = 0;
-
-			/*
-			 * Maybe server is killed while we are waiting a
-			 * response from it. clear the state.
-			 */
-			wait_response = 0;
+			may_send_msg = 0;
 
 #ifdef SERVER_AUTO_RESTART
 			ipcon_err("ipcon server is sadly lost. restart it\n");
@@ -149,6 +145,7 @@ int main(int argc, char *argv[])
 				"ipcon_server",
 				(unsigned long)srv_port,
 				group);
+			may_send_msg = 1;
 		}
 
 		while (1) {
@@ -161,7 +158,7 @@ int main(int argc, char *argv[])
 			 * the response of server. so a wait_response is used to
 			 * manage the state.
 			 */
-			if (srv_port && !wait_response) {
+			if (srv_port && may_send_msg) {
 				ipcon_info("Send %s to server %d\n",
 						msg, srv_port);
 
@@ -178,7 +175,7 @@ int main(int argc, char *argv[])
 				if (ret < 0)
 					ipcon_err("Send msg fail.\n");
 				else
-					wait_response = 1;
+					may_send_msg = 0;
 			}
 
 			len = ipcon_rcv(handler, &src_port, &group,
@@ -193,6 +190,14 @@ int main(int argc, char *argv[])
 			if (group == IPCON_MC_GROUP_KERN) {
 				struct ipcon_kern_event *ike =
 					(struct ipcon_kern_event *)buf;
+
+				/*
+				 * Basiclly, group messages from kernel are out
+				 * of interest, so neglect them and redo
+				 * ipcon_rcv().for IPCON_SRV_ADD, may_send_msg
+				 * will be set in correctly in deal_srv_add().
+				 */
+				may_send_msg = 0;
 
 				switch (ike->event) {
 				case IPCON_SRV_ADD:
@@ -213,7 +218,7 @@ int main(int argc, char *argv[])
 			if (srv_port) {
 				if (src_port == srv_port) {
 					ipcon_err("Server return : %s\n", buf);
-					wait_response = 0;
+					may_send_msg = 1;
 					if (!strcmp(buf, "bye")) {
 						ipcon_err("%s - %d: Quit...\n",
 							__func__, __LINE__);
