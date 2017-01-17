@@ -11,11 +11,15 @@
 #include "ipcon_tree.h"
 #include "ipcon_dbg.h"
 
+#ifdef CONFIG_DEBUG_FS
+#include "ipcon_debugfs.h"
+#endif
+
 DEFINE_MUTEX(ipcon_mutex);
 
 static struct sock *ipcon_nl_sock;
 static struct ipcon_tree_node *cp_tree_root;
-static long int group_bitflag;
+static unsigned long int group_bitflag;
 static struct ipcon_msghdr *group_msgs_cache[32];
 
 struct ipcon_msghdr *dup_ipcon_msghdr(struct ipcon_msghdr *im,
@@ -51,6 +55,21 @@ static inline void reg_group(int group)
 static inline void unreg_group(int group)
 {
 	clear_bit(group - 1, &group_bitflag);
+}
+
+struct ipcon_tree_node *ipcon_lookup_unlock(char *name)
+{
+	return cp_lookup(cp_tree_root, name);
+}
+
+void ipcon_lock(void)
+{
+	mutex_lock(&ipcon_mutex);
+}
+
+void ipcon_unlock(void)
+{
+	mutex_unlock(&ipcon_mutex);
 }
 
 /*
@@ -101,6 +120,9 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 		im->rport = 0;
 
 		cp_detach_node(&cp_tree_root, nd);
+#ifdef CONFIG_DEBUG_FS
+		ipcon_debugfs_remove_srv(nd);
+#endif
 		cp_free_node(nd);
 
 		ipcon_info("Remove node: %s port: %lu group:%u\n",
@@ -150,11 +172,20 @@ int ipcon_nl_init(void)
 		ipcon_nl_sock = NULL;
 	}
 
+#ifdef CONFIG_DEBUG_FS
+	if (ipcon_debugfs_init(&group_bitflag))
+		ipcon_err("Failed to init debugfs.\n");
+#endif
+
 	return ret;
 }
 
 void ipcon_nl_exit(void)
 {
+
+#ifdef CONFIG_DEBUG_FS
+	ipcon_debugfs_exit();
+#endif
 
 	netlink_unregister_notifier(&ipcon_netlink_notifier);
 
@@ -405,6 +436,14 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (error)
 				break;
 
+#ifdef CONFIG_DEBUG_FS
+			if (nd->srv.group)
+				ipcon_debugfs_add_srv(nd,
+					&group_msgs_cache[nd->srv.group]);
+			else
+				ipcon_debugfs_add_srv(nd, NULL);
+#endif
+
 			im = alloc_ipconmsg(
 				sizeof(struct ipcon_kern_event),
 				GFP_ATOMIC);
@@ -429,6 +468,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				GFP_ATOMIC);
 
 			ipcon_unref(&im);
+
 			break;
 
 		case IPCON_SRV_UNREG:
@@ -468,6 +508,9 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (nd->srv.group) {
 				unreg_group(nd->srv.group);
 				ipcon_unref(&group_msgs_cache[nd->srv.group]);
+#ifdef CONFIG_DEBUG_FS
+				ipcon_debugfs_remove_srv(nd);
+#endif
 			}
 
 			/* Inform user space that service removed */

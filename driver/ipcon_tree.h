@@ -14,6 +14,9 @@ struct ipcon_tree_node {
 	__u32 port;
 	struct ipcon_srv srv;
 	__u32 auth_key;
+#ifdef CONFIG_DEBUG_FS
+	void *priv;
+#endif
 	struct ipcon_tree_node *parent;
 	struct ipcon_tree_node *left;
 	struct ipcon_tree_node *right;
