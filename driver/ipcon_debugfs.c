@@ -12,6 +12,12 @@
 struct dentry *diret;
 struct dentry *grp_bit_flag;
 struct dentry *service;
+struct dentry *service_byport;
+
+struct ipcon_debugfs_srv {
+	struct dentry *byname;
+	struct dentry *byport;
+};
 
 static ssize_t srv_file_read(struct file *fp, char __user *user_buffer,
 				size_t count, loff_t *position)
@@ -103,6 +109,7 @@ int __init ipcon_debugfs_init(unsigned long int *groupbitflag)
 				0644, diret, (u32 *)groupbitflag);
 
 	service = debugfs_create_dir("service", diret);
+	service_byport = debugfs_create_dir("group", diret);
 
 	return ret;
 }
@@ -111,26 +118,48 @@ int ipcon_debugfs_add_srv(struct ipcon_tree_node *nd,
 		struct ipcon_msghdr **cached_msg)
 {
 	int ret = 0;
+	struct ipcon_debugfs_srv *ids = NULL;
 
 	if (!nd)
 		return -EINVAL;
 
-	nd->priv = (void *)debugfs_create_file(nd->srv.name,
+	ids = kmalloc(sizeof(*ids), GFP_KERNEL);
+	if (!ids)
+		return -ENOMEM;
+
+	ids->byname = debugfs_create_file(nd->srv.name,
 						0644,
 						service,
 						cached_msg,
 						&ipcon_debugfs_fops);
+
+	if (nd->srv.group) {
+		char buf[16];
+		char path[128];
+
+		sprintf(buf, "%u", nd->srv.group);
+		sprintf(path, "../service/%s", nd->srv.name);
+		ids->byport = debugfs_create_symlink(buf,
+						service_byport,
+						path);
+	}
+
+	nd->priv = (void *) ids;
 	return ret;
 }
 
 int ipcon_debugfs_remove_srv(struct ipcon_tree_node *nd)
 {
 	int ret = 0;
+	struct ipcon_debugfs_srv *ids = NULL;
 
 	if (!nd)
 		return -EINVAL;
 
-	debugfs_remove((struct dentry *)nd->priv);
+	ids = nd->priv;
+	debugfs_remove(ids->byport);
+	debugfs_remove(ids->byname);
+	kfree(ids);
 	nd->priv = NULL;
 
 	return ret;
