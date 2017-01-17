@@ -92,8 +92,10 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 		ike->event = IPCON_SRV_REMOVE;
 		ike->port = nd->port;
 		ike->group = nd->srv.group;
-		if (nd->srv.group > 0)
+		if (nd->srv.group > 0) {
 			unreg_group(nd->srv.group);
+			ipcon_unref(&group_msgs_cache[nd->srv.group]);
+		}
 
 		strcpy(ike->name, nd->srv.name);
 		im->rport = 0;
@@ -119,7 +121,7 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 
 	mutex_unlock(&ipcon_mutex);
 
-	kfree(im);
+	ipcon_unref(&im);
 
 	return 0;
 }
@@ -249,9 +251,11 @@ static int ipcon_multicast(u32 pid, unsigned int group,
 
 	/* Caching the last multicast message */
 	if (!ret) {
-		kfree(group_msgs_cache[group]);
-		group_msgs_cache[group] =
-			dup_ipcon_msghdr((struct ipcon_msghdr *)data, flags);
+		struct ipcon_msghdr *im = (struct ipcon_msghdr *)data;
+
+		ipcon_unref(&group_msgs_cache[group]);
+		ipcon_ref(&im);
+		group_msgs_cache[group] = im;
 	}
 
 	return ret;
@@ -286,7 +290,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 						nlh->nlmsg_seq++,
 						im,
 						im->ipconmsg_len);
-			kfree(im);
+			ipcon_unref(&im);
 			break;
 
 		case IPCON_SRV_REG:
@@ -339,14 +343,14 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			}
 
 			if (error) {
-				kfree(im);
+				ipcon_unref(&im);
 				break;
 			}
 
 			nd = cp_alloc_node(ip, nlh->nlmsg_pid);
 			if (!nd) {
 				error = -ENOMEM;
-				kfree(im);
+				ipcon_unref(&im);
 				break;
 			}
 
@@ -362,7 +366,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				if (im->group)
 					unreg_group(im->group);
 
-				kfree(im);
+				ipcon_unref(&im);
 				break;
 			}
 
@@ -388,7 +392,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 					unreg_group(im->group);
 			}
 
-			kfree(im);
+			ipcon_unref(&im);
 
 			/* Inform user space that service added */
 			if (error)
@@ -416,7 +420,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				im->ipconmsg_len,
 				GFP_ATOMIC);
 
-			kfree(im);
+			ipcon_unref(&im);
 			break;
 
 		case IPCON_SRV_UNREG:
@@ -480,7 +484,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				im,
 				im->ipconmsg_len,
 				GFP_ATOMIC);
-			kfree(im);
+			ipcon_unref(&im);
 
 			cp_free_node(nd);
 
@@ -517,7 +521,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 					im,
 					im->ipconmsg_len);
 
-			kfree(im);
+			ipcon_unref(&im);
 			break;
 
 		case IPCON_GROUP_RESLOVE:
@@ -577,7 +581,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			error = ipcon_multicast(
 					nlh->nlmsg_pid,
 					nd->srv.group,
-					im,
+					dup_ipcon_msghdr(im, GFP_ATOMIC),
 					im->ipconmsg_len,
 					GFP_ATOMIC);
 			break;

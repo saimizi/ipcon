@@ -72,7 +72,7 @@ IPCON_HANDLER ipcon_create_handler(void)
 			/* FIXME: Add timeout here */
 			while (1) {
 				ret = rcv_msg(imi, &from, &nlh,
-					MAX_IPCONMSG_LEN);
+						MAX_IPCONMSG_LEN);
 				if (ret < 0)
 					break;
 

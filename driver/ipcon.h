@@ -53,6 +53,7 @@ struct ipcon_msghdr {
 				 * Authencation key between kernel and
 				 * user space for service.
 				 */
+	__u32 refcnt;		/* Reference counter */
 	union {
 		__u32 rport;	/* Real port number in IPCON_MULICAST_EVENT */
 		__u32 selfid;	/* self portid in IPCON_GET_SELFID */
@@ -103,6 +104,7 @@ static inline struct ipcon_msghdr *alloc_ipconmsg(__u32 size, gfp_t flags)
 		memset(result, 0, sizeof(*result));
 		result->ipconmsg_len = IPCONMSG_SPACE(size);
 		result->size = size;
+		result->refcnt = 1;
 	}
 
 	return result;
@@ -120,10 +122,41 @@ static inline struct ipcon_msghdr *alloc_ipconmsg(__u32 size)
 		memset(result, 0, sizeof(*result));
 		result->ipconmsg_len = IPCONMSG_SPACE(size);
 		result->size = size;
+		result->refcnt = 1;
 	}
 
 	return result;
 }
 #endif
+
+static inline void ipcon_ref(struct ipcon_msghdr **rim)
+{
+	if (!rim || !(*rim))
+		return;
+
+	(*rim)->refcnt++;
+}
+
+static inline void ipcon_unref(struct ipcon_msghdr **rim)
+{
+	struct ipcon_msghdr *im;
+
+	if (!rim || !(*rim))
+		return;
+
+	im = *rim;
+
+	if (im->refcnt)
+		im->refcnt--;
+
+	if (!im->refcnt) {
+#ifdef __KERNEL__
+		kfree(im);
+#else
+		free(im);
+#endif
+		*rim = NULL;
+	}
+}
 
 #endif /* __IPCON_H__ */
