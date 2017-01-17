@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
 		 * "ipcon_server", this should be done before calling
 		 * ipcon_find_service() so that detection will not be missed.
 		 */
-		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN);
+		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN, 0);
 		if (ret < 0) {
 			ipcon_err("Failed to join group %d %s(%d).\n",
 					IPCON_MC_GROUP_KERN,

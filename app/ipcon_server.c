@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
 				(unsigned long)ipcon_get_selfport(handler),
 				srv->group);
 
-		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN);
+		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN, 0);
 		if (ret < 0) {
 			ipcon_err("Failed to join group %d %s(%d).\n",
 					IPCON_MC_GROUP_KERN,

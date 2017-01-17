@@ -31,7 +31,7 @@ static int deal_srv_add(IPCON_HANDLER handler,
 			(unsigned long) ike->port, ike->group);
 
 	if (!strcmp(ike->name, "ipcon_server") && !srv_group && !srv_port) {
-		ret = ipcon_join_group(handler, ike->group);
+		ret = ipcon_join_group(handler, ike->group, 0);
 		if (!ret) {
 			srv_group = ike->group;
 			srv_port = ike->port;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 
-		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN);
+		ret = ipcon_join_group(handler, IPCON_MC_GROUP_KERN, 0);
 		if (ret < 0) {
 			ipcon_err("Failed to join group %d %s(%d).\n",
 					IPCON_MC_GROUP_KERN,
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 					&srv_port,
 					&srv_group);
 		if (!ret) {
-			ret = ipcon_join_group(handler, srv_group);
+			ret = ipcon_join_group(handler, srv_group, 0);
 			if (ret < 0) {
 				ipcon_err("Failed to join group %d %s(%d).\n",
 					srv_group,
