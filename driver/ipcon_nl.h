@@ -14,4 +14,8 @@ void ipcon_nl_exit(void);
 struct ipcon_tree_node *ipcon_lookup_unlock(char *name);
 void ipcon_lock(void);
 void ipcon_unlock(void);
+
+#ifdef CONFIG_DEBUG_FS
+struct ipcon_msghdr *ipcon_get_group1(void);
+#endif
 #endif

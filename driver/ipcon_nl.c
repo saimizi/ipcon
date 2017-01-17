@@ -62,6 +62,13 @@ struct ipcon_tree_node *ipcon_lookup_unlock(char *name)
 	return cp_lookup(cp_tree_root, name);
 }
 
+#ifdef CONFIG_DEBUG_FS
+struct ipcon_msghdr *ipcon_get_group1(void)
+{
+	return group_msgs_cache[1];
+}
+#endif
+
 void ipcon_lock(void)
 {
 	mutex_lock(&ipcon_mutex);
