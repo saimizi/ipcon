@@ -5,6 +5,10 @@
 #ifndef __IPCON_H__
 #define __IPCON_H__
 
+#ifdef __KERNEL__
+#include "ipcon_dbg.h"
+#endif
+
 #define NETLINK_IPCON 29
 
 #define IPCON_MAX_SRV_NAME_LEN	32
@@ -104,7 +108,6 @@ static inline struct ipcon_msghdr *alloc_ipconmsg(__u32 size, gfp_t flags)
 		memset(result, 0, sizeof(*result));
 		result->ipconmsg_len = IPCONMSG_SPACE(size);
 		result->size = size;
-		result->refcnt = 1;
 	}
 
 	return result;
@@ -122,19 +125,23 @@ static inline struct ipcon_msghdr *alloc_ipconmsg(__u32 size)
 		memset(result, 0, sizeof(*result));
 		result->ipconmsg_len = IPCONMSG_SPACE(size);
 		result->size = size;
-		result->refcnt = 1;
 	}
 
 	return result;
 }
 #endif
 
+#ifdef __KERNEL__
 static inline void ipcon_ref(struct ipcon_msghdr **rim)
 {
+	struct ipcon_msghdr *im;
+
 	if (!rim || !(*rim))
 		return;
 
-	(*rim)->refcnt++;
+	im = *rim;
+
+	im->refcnt++;
 }
 
 static inline void ipcon_unref(struct ipcon_msghdr **rim)
@@ -150,13 +157,10 @@ static inline void ipcon_unref(struct ipcon_msghdr **rim)
 		im->refcnt--;
 
 	if (!im->refcnt) {
-#ifdef __KERNEL__
 		kfree(im);
-#else
-		free(im);
-#endif
 		*rim = NULL;
 	}
 }
+#endif
 
 #endif /* __IPCON_H__ */

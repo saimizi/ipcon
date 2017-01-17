@@ -601,7 +601,7 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group,
 	struct nlmsghdr *nlh_cached = NULL;
 	struct sockaddr_nl from_cached;
 
-	if (!imi || !group)
+	if (!imi || !group || (group > 32))
 		return -EINVAL;
 
 	do {
@@ -649,13 +649,29 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group,
 				continue;
 			}
 
-			/* the cached multicast message*/
+			/*
+			 * If the target group exists, ipcon driver will return
+			 * the last mutlicast message sent to that group.If we
+			 * join the group successuffly, queue this message so
+			 * that the user process will receive it as the first
+			 * multicast message. This is needed if the multicast
+			 * message carries some state information.
+			 *
+			 * To make the returned message be a "Multicast"
+			 * message, the message type and group number should be
+			 * set to the valid one. See ipcon_rcv().
+			 *
+			 * If user doen't care it, just do nothing.
+			 */
 			if (nlh->nlmsg_type == IPCON_GROUP_RESLOVE) {
 				if (rcv_last_msg) {
 					nlh->nlmsg_type = IPCON_MULICAST_EVENT;
 					nlh_cached = nlh;
-					memcpy(&from_cached, &from,
-							sizeof(from));
+					memcpy(&from_cached,
+						&from,
+						sizeof(from));
+					from_cached.nl_groups =
+							(__u32)1 << (group - 1);
 				} else {
 					free(nlh);
 				}
@@ -681,6 +697,10 @@ int ipcon_join_group(IPCON_HANDLER handler, unsigned int group,
 
 		}
 
+		/*
+		 * Only queueing the last multicast message when successfully
+		 * joined the group.
+		 */
 		if (!ret) {
 			if (nlh_cached) {
 				if (queue_msg(imi, nlh_cached, &from_cached))

@@ -78,7 +78,7 @@ static int ipcon_netlink_notify(struct notifier_block *nb,
 	if (!im)
 		return 0;
 
-
+	ipcon_ref(&im);
 	ike = IPCONMSG_DATA(im);
 
 	/*
@@ -282,6 +282,12 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 		switch (type) {
 		case IPCON_GET_SELFID:
 			im = alloc_ipconmsg(0, GFP_ATOMIC);
+			if (!im) {
+				error = -ENOMEM;
+				break;
+			}
+
+			ipcon_ref(&im);
 			im->selfid = NETLINK_CB(skb).portid;
 			ipcon_dbg("IPCON_GET_SELFID: id=%lu\n",
 					(unsigned long)im->selfid);
@@ -319,6 +325,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
+			ipcon_ref(&im);
 			switch (ip->group) {
 			case 0:
 				/* No group required */
@@ -407,6 +414,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
+			ipcon_ref(&im);
 			ike = IPCONMSG_DATA(im);
 			ike->event = IPCON_SRV_ADD;
 			ike->port =  nd->port;
@@ -457,9 +465,10 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (error)
 				break;
 
-			if (nd->srv.group)
+			if (nd->srv.group) {
 				unreg_group(nd->srv.group);
-
+				ipcon_unref(&group_msgs_cache[nd->srv.group]);
+			}
 
 			/* Inform user space that service removed */
 			im = alloc_ipconmsg(
@@ -472,6 +481,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
+			ipcon_ref(&im);
 			ike = IPCONMSG_DATA(im);
 			ike->event = IPCON_SRV_REMOVE;
 			ike->port =  nd->port;
@@ -512,6 +522,7 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 				break;
 			}
 
+			ipcon_ref(&im);
 			im->srv.group = nd->srv.group;
 			im->srv.port = nd->port;
 			error = ipcon_unicast(
@@ -548,10 +559,23 @@ static int ipcon_msg_handler(struct sk_buff *skb, struct nlmsghdr *nlh)
 							ca,
 							ca->ipconmsg_len);
 			}
+
 			break;
 
 		case IPCON_SRV_DUMP:
 			cp_print_tree(cp_tree_root);
+			ipcon_dbg("IPCON_SRV_DUMP:group_bitflag=0x%lx\n",
+					group_bitflag);
+
+			{
+				int i;
+
+				for (i = 0; i < 32; i++) {
+					ipcon_dbg("group_msgs_cache[%d]: %p\n",
+						i, group_msgs_cache[i]);
+				}
+			}
+
 			break;
 
 		case IPCON_MULICAST_EVENT:
