@@ -35,8 +35,8 @@ enum {
 	IPCON_ATTR_RPORT,
 	IPCON_ATTR_SELFID,
 	IPCON_ATTR_PORT,
-	IPCON_ATTR_GRP,
-	IPCON_ATTR_GRP_NAME,
+	IPCON_ATTR_GROUP,
+	IPCON_ATTR_GROUP_NAME,
 	IPCON_ATTR_PEER_NAME,
 	IPCON_ATTR_DATA,
 	IPCON_ATTR_FLAG,
@@ -52,20 +52,22 @@ enum IPCON_KERN_EVENT {
 	IPCON_SRV_REMOVE
 };
 
-#define IPCON_POLICY_DEF {						\
-	[IPCON_ATTR_RPORT] = {.type = NLA_U32},				\
-	[IPCON_ATTR_SELFID] = {.type = NLA_U32},			\
-	[IPCON_ATTR_PORT] = {.type = NLA_U32},				\
-	[IPCON_ATTR_GROUP] = {.type = NLA_U32},				\
-	[IPCON_ATTR_GRP_NAME] = {.type = NLA_NUL_STRING,		\
-				.len = IPCON_MAX_NAME_LEN - 1},		\
-	[IPCON_ATTR_PEER_NAME] = {.type = NLA_NUL_STRING,		\
-				.len = IPCON_MAX_NAME_LEN - 1},		\
-	[IPCON_ATTR_DATA] = {.type = NLA_BINARY,			\
-			.len = IPCON_MAX_MSG_LEN},			\
-	[IPCON_ATTR_FLAG] = {.type = NLA_FLAG},				\
-	[IPCON_ATTR_KEVENT] = {.type = NLA_U8},				\
+#define IPCON_POLICY_DEF					\
+{								\
+	[IPCON_ATTR_RPORT] = {.type = NLA_U32},			\
+	[IPCON_ATTR_SELFID] = {.type = NLA_U32},		\
+	[IPCON_ATTR_PORT] = {.type = NLA_U32},			\
+	[IPCON_ATTR_GROUP] = {.type = NLA_U32},			\
+	[IPCON_ATTR_GROUP_NAME] = {.type = NLA_NUL_STRING,	\
+				.len = IPCON_MAX_NAME_LEN - 1},	\
+	[IPCON_ATTR_PEER_NAME] = {.type = NLA_NUL_STRING,	\
+				.len = IPCON_MAX_NAME_LEN - 1},	\
+	[IPCON_ATTR_DATA] = {.type = NLA_BINARY,		\
+			.len = IPCON_MAX_MSG_LEN},		\
+	[IPCON_ATTR_FLAG] = {.type = NLA_FLAG},			\
+	[IPCON_ATTR_KEVENT] = {.type = NLA_U8},			\
 }
 
+#define IPCON_HDRLEN	0
 
 #endif /* __IPCON_H__ */
