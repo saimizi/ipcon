@@ -5,6 +5,15 @@
 #ifndef __IPCON_NETLINK_H__
 #define __IPCON_NETLINK_H__
 #include <net/sock.h>
+#include <linux/netlink.h>
+#include <net/netlink.h>
+
+struct ipcon_info {
+	__u32 snd_seq;
+	__u32 snd_port;
+	struct nlmsghdr *nlh;
+	struct nlattr **attrs;
+};
 
 int ipcon_nl_init(void);
 int ipcon_netlink_send_msg(int pid, int type, int seq,
