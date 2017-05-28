@@ -13,6 +13,9 @@ VER_0 {
 		ipcon_get_selfport;
 		ipcon_get_selfsrv;
 		ipcon_getfd;
+		ipcon_join_group;
+		ipcon_register_group;
+		ipcon_unregister_group;
 	local:
 		*;
 };
