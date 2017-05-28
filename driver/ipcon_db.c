@@ -25,6 +25,9 @@ void igi_del(struct ipcon_group_info *igi)
 {
 	if (hash_hashed(&igi->igi_hname))
 		hash_del(&igi->igi_hname);
+
+	if (hash_hashed(&igi->igi_hgroup))
+		hash_del(&igi->igi_hgroup);
 }
 
 void igi_free(struct ipcon_group_info *igi)
@@ -32,7 +35,7 @@ void igi_free(struct ipcon_group_info *igi)
 	if (!igi)
 		return;
 
-	igi_detach(igi);
+	igi_del(igi);
 	kfree_skb(igi->last_grp_msg);
 	kfree(igi);
 }
@@ -51,7 +54,8 @@ struct ipcon_peer_node *ipn_alloc(__u32 port, __u32 ctrl_port, char *name)
 
 	ipn->port = port;
 	ipn->ctrl_port = ctrl_port;
-	hash_init(&ipd->ipn_grp_ht);
+	hash_init(&ipd->ipn_group_ht);
+	hash_init(&ipd->ipn_name_ht);
 	strcpy(ipn->name, name);
 
 	return ipn;
@@ -65,25 +69,46 @@ void ipn_free(struct ipcon_peer_node *ipn)
 	if (!ipn)
 		return;
 
-	ipn_detach(ipn);
+	ipn_del(ipn);
 
-	if (!hash_empty(ipn->ipn_grp_ht))
-		hash_for_each(ipn->ipn_grp_ht, bkt, igi, igi_hname)
+	if (!hash_empty(ipn->ipn_group_ht))
+		hash_for_each(ipn->ipn_group_ht, bkt, igi, igi_hgroup)
 			igi_free(igi);
+
+	BUG_ON(!hash_empty(ipn->ipn_name_ht));
 
 	kfree(ipn);
 }
 
 
-struct ipcon_group_info *ipn_lookup(struct ipcon_peer_node *ipn, char *grp_name)
+struct ipcon_group_info *ipn_lookup_byname(struct ipcon_peer_node *ipn,
+				char *grp_name)
 {
 	struct ipcon_group_info *igi = NULL;
 
 	if (!ipn || !grp_name)
 		return NULL;
 
-	hash_for_each_possible(ipn->ipn_grp_ht, igi, igi_hanme, grp_name)
-		if (!strcmp(igi->name, grp_name)) {
+	hash_for_each_possible(ipn->ipn_name_ht, igi, igi_hname, grp_name)
+		if (!strcmp(igi->name, grp_name))
+			return igi;
+
+	return NULL;
+}
+
+struct ipcon_group_info *ipn_lookup_bygroup(struct ipcon_peer_node *ipn,
+					unsigned long group)
+{
+	struct ipcon_group_info *igi = NULL;
+
+	if (!ipn)
+		return NULL;
+
+	if (!group || group > IPCON_MAX_GROUP)
+		return NULL;
+
+	hash_for_each_possible(ipn->ipn_group_ht, igi, igi_hgroup, group)
+		if (igi->group == group)
 			return igi;
 
 	return NULL;
